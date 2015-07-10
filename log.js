@@ -11,7 +11,6 @@ var map = require('map-stream')
 var safe = require('safecb')
 var rebuf = require('./rebuf')
 var Entry = require('./entry')
-var noop = function () {}
 
 module.exports = Log
 util.inherits(Log, Writable)
@@ -36,8 +35,8 @@ Log.prototype.close = function (cb) {
   this._db.close(cb)
 }
 
-Log.read =
-Log.readStream =
+Log.prototype.read =
+Log.prototype.readStream =
 Log.prototype.createReadStream = function (options) {
   if (options.keys === false) throw new Error('"keys" are required')
 
@@ -71,15 +70,31 @@ Log.prototype.createReadStream = function (options) {
   return combine.obj.apply(combine, pipeline)
 }
 
+Log.prototype.get = function (id, opts, cb) {
+  if (typeof opts === 'function') {
+    cb = opts
+    opts = {}
+  }
+
+  return this._log.get(id, opts, function (err, val) {
+    if (err) return cb(err)
+
+    var entry = Entry.fromJSON(rebuf(val))
+     .id(id)
+
+    cb(null, entry)
+  })
+}
+
 Log.prototype.append = function (entry, cb) {
   typeforce('Entry', entry)
   entry.validate()
-  return this._log.append(entry.toJSON(), cb || noop)
+  return this._log.append(entry.toJSON(), safe(cb))
 }
 
 Log.prototype.last = function (cb) {
   cb = safe(cb)
-  return this.createReadStream({ limit: 1, reverse: true })
+  return this.read({ limit: 1, reverse: true })
     .once('error', cb)
     .once('data', function (entry) {
       cb(null, entry.id())
