@@ -1,7 +1,6 @@
 
 var typeforce = require('typeforce')
 var extend = require('extend')
-var omit = require('object.omit')
 var rest = require('./rest')
 var ArrayProto = Array.prototype
 
@@ -22,8 +21,19 @@ function Entry (id) {
   if (typeof id !== 'undefined') this._metadata.id = id
 }
 
-Entry.prototype.metadata = function () {
-  return extend(true, {}, this._metadata)
+Entry.prototype.meta =
+Entry.prototype.metadata = function (metadata) {
+  if (arguments.length === 0) {
+    return extend(true, {}, this._metadata)
+  }
+
+  if (typeof metadata === 'string') {
+    this._metadata[arguments[0]] = this._metadata[arguments[1]]
+  } else {
+    extend(true, this._metadata, metadata)
+  }
+
+  return this
 }
 
 Entry.prototype.hasTag = function (tag) {
@@ -97,6 +107,7 @@ Entry.prototype.get = function (name) {
   return this._props[name]
 }
 
+Entry.prototype.data =
 Entry.prototype.set = function (name, value) {
   if (typeof name === 'object') {
     extend(true, this._props, name)
@@ -120,12 +131,11 @@ Entry.prototype.copy = function (props) {
 
 Entry.prototype.toJSON = function (skipMetadata) {
   this.validate()
-  var json = extend(true, {}, this._props)
-  if (!skipMetadata) {
-    json._l = extend(true, {}, this._metadata)
-  }
 
-  return json
+  return {
+    meta: extend(true, {}, this._metadata),
+    data: extend(true, {}, this._props)
+  }
 }
 
 Entry.prototype.validate = function () {
@@ -133,14 +143,18 @@ Entry.prototype.validate = function () {
 }
 
 Entry.fromJSON = function (json) {
-  var metadata = json._l
-  typeforce('Object', metadata)
-  typeforce('Array', metadata.tags)
+  typeforce({
+    meta: '?Object',
+    data: 'Object'
+  }, json)
 
   var entry = new Entry()
-    .set(omit(json, '_l'))
+    .data(json.data)
 
-  entry._metadata = extend(true, {}, metadata)
+  if (json.meta) {
+    entry.meta(json.meta)
+  }
+
   return entry
 }
 

@@ -5,7 +5,7 @@ var Log = require('../log')
 var Entry = require('../entry')
 
 test('basic', function (t) {
-  t.plan(2)
+  t.plan(4)
 
   var log = new Log('log.db', {
     db: memdown,
@@ -20,8 +20,10 @@ test('basic', function (t) {
   })
 
   var entry = new Entry()
-    .tag('tx')
-    .set({
+    .meta({
+      tags: ['tx']
+    })
+    .data({
       hey: 'ho',
       blah: {
         blah: {
