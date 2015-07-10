@@ -126,6 +126,10 @@ LogBase.prototype.destroy = function (cb) {
   this._rawDB.close(cb)
 }
 
+LogBase.prototype.sublevel = function () {
+  return this._db.sublevel.apply(this._db, arguments)
+}
+
 ;['put', 'get', 'del', 'batch'].forEach(function (method) {
   LogBase.prototype[method] = function () {
     var cb = arguments[arguments.length - 1]
