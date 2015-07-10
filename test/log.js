@@ -5,6 +5,8 @@ var Log = require('../log')
 var Entry = require('../entry')
 
 test('basic', function (t) {
+  t.plan(2)
+
   var log = new Log('log.db', {
     db: memdown,
     valueEncoding: 'json'
@@ -15,7 +17,6 @@ test('basic', function (t) {
     t.ok(data instanceof Entry)
     entry.id(data.id()) // id should be the only thing missing
     t.deepEqual(data.toJSON(), entry.toJSON())
-    t.end()
   })
 
   var entry = new Entry()
@@ -30,5 +31,14 @@ test('basic', function (t) {
     })
 
   t.throws(log.append.bind(log, entry.toJSON()), /Expected Entry/i)
-  log.append(entry)
+  log.append(entry, function (err) {
+    if (err) throw err
+
+    log.get(1, function (err, stored) {
+      if (err) throw err
+
+      entry.id(stored.id())
+      t.deepEqual(stored.toJSON(), entry.toJSON())
+    })
+  })
 })
