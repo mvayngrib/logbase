@@ -13,7 +13,8 @@ function Entry (id) {
   this._props = {}
   this._metadata = {
     timestamp: Date.now(),
-    tags: []
+    tags: [],
+    prev: []
     // id: null,
     // prev: null
   }
@@ -73,13 +74,18 @@ Entry.prototype.prev = function (id) {
   if (typeof id === 'number') {
     prevId = id
   } else if (id instanceof Entry) {
-    prevId = id.id()
+    prevId = id.prev().slice()
+    prevId.push(id.id())
   } else if (id._l) {
     prevId = id._l.id
   }
 
+  if (typeof prevId !== 'number' && !Array.isArray(prevId)) {
+    throw new Error('invalid "prev"')
+  }
+
   typeforce('Number', prevId)
-  this._metadata.prev = prevId
+  this._metadata.prev = this._metadata.prev.concat(prevId)
   return this
 }
 
