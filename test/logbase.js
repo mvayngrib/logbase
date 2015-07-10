@@ -16,33 +16,29 @@ test('basic', function (t) {
 
   cleanup()
 
-  var db = levelup(paths.db, {
-    db: leveldown,
-    valueEncoding: 'json'
-  })
-
   var log = new Log(paths.log, {
     db: leveldown,
     valueEncoding: 'json'
   })
 
   var numRead = 0
-  var numEntries = 20
+  var numDead = 10
+  var numLive = 10
+  var numEntries = numDead + numLive
   log.createReadStream({ live: true })
     .on('data', function () {
-      if (++numRead === numEntries) {
+      if (++numRead === numDead) {
         restart()
+        addEntries(log, numLive, numRead)
       }
     })
 
   var expectedIds = []
   for (var i = 1; i <= numEntries; i++) {
-    var entry = new LogEntry()
-      .set('count', i)
-
-    log.append(entry)
     expectedIds.push(i)
   }
+
+  addEntries(log, numDead)
 
   var ldb
   var processedId = 1
@@ -59,7 +55,10 @@ test('basic', function (t) {
 
     ldb = new LogBasedDB({
       log: log,
-      db: db
+      db: levelup(paths.db, {
+        db: leveldown,
+        valueEncoding: 'json'
+      })
     })
 
     ldb._process = process
@@ -83,14 +82,14 @@ test('basic', function (t) {
       return restart()
     }
 
-    this._db.get('ids', function (err, ids) {
+    this.get('ids', function (err, ids) {
       if (err) {
         if (err.notFound) ids = []
         else throw err
       }
 
       ids.push(entry.id())
-      self._db.batch([{ type: 'put', key: 'ids', value: ids }], cb)
+      self.batch([{ type: 'put', key: 'ids', value: ids }], cb)
     })
   }
 
@@ -103,4 +102,14 @@ test('basic', function (t) {
 
 function clear (dbPath) {
   rimraf.sync(dbPath)
+}
+
+function addEntries (log, num, offset) {
+  offset = offset || 0
+  for (var i = 1; i <= num; i++) {
+    var entry = new LogEntry()
+      .set('count', i + offset)
+
+    log.append(entry)
+  }
 }

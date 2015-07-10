@@ -1,9 +1,13 @@
 
 var util = require('util')
 var EventEmitter = require('events').EventEmitter
+var Writable = require('readable-stream').Writable
 var typeforce = require('typeforce')
 var safe = require('safecb')
 var sublevel = require('level-sublevel')
+var addStream = require('add-stream')
+var filter = require('./filterStream')
+// var map = require('map-stream')
 var LAST_CHANGE_ID_KEY = 'last'
 
 module.exports = LogBase
@@ -17,6 +21,8 @@ function LogBase (options) {
     log: 'Log',
     db: 'Object'
   }, options)
+
+  EventEmitter.call(this)
 
   this._log = options.log
   this._rawDB = options.db
@@ -51,53 +57,48 @@ function LogBase (options) {
   this._meta.post(function (change) {
     self.emit('change', change.value)
   })
+
+  this._ws = new Writable({ objectMode: true })
+  this._ws._write = function (entry, enc, next) {
+    if (!self.willProcess(entry)) {
+      next()
+    } else {
+      self.process(entry, next)
+    }
+  }
 }
 
 LogBase.prototype._startReading = function () {
   var self = this
+  this._log.last(function (err, logPosition) {
+    if (err) throw err
 
-  this._log.createReadStream({
-      live: true,
-      since: this._position
-    })
-    .on('data', function (data) {
-      if (self.willProcess(data)) self.process(data)
-    })
-    .on('error', this.emit.bind(this, 'error'))
+    var catchUp = self._log.createReadStream({
+        live: false,
+        since: self._position
+      })
+      .pipe(filter(function (entry) {
+        return entry.id() <= logPosition
+      }))
+      .on('end', self.emit.bind(self, 'live'))
+
+    var live = self._log.createReadStream({
+        live: true,
+        since: logPosition
+      })
+      // .pipe(map(function (data, cb) {
+      //   cb(null, data)
+      // }))
+
+    catchUp
+      .pipe(addStream.obj(live))
+      .pipe(self._ws)
+      .on('error', self.emit.bind(self, 'error'))
+  })
 }
 
 LogBase.prototype.last = function () {
   return this._position
-}
-
-LogBase.prototype.get = function () {
-  return this._db.get.apply(this._db, arguments)
-}
-
-LogBase.prototype.put = function () {
-  return this._db.put.apply(this._db, arguments)
-}
-
-LogBase.prototype.del = function () {
-  return this._db.del.apply(this._db, arguments)
-}
-
-LogBase.prototype.batch = function () {
-  return this._db.batch.apply(this._db, arguments)
-}
-
-LogBase.prototype._catchUp = function (cb) {
-  var self = this
-  cb = safe(cb)
-
-  this._log.createReadStream({
-      since: this._position
-    })
-    .on('data', function (data) {
-      if (self.willProcess(data)) self.process(data)
-    })
-    .on('end', cb)
-    .on('close', cb)
 }
 
 LogBase.prototype.willProcess = function (entry) {
@@ -108,15 +109,24 @@ LogBase.prototype.willProcess = function (entry) {
 }
 
 LogBase.prototype.process = function (entry, cb) {
-  cb = safe(cb)
-  if (!this.willProcess(entry)) {
-    return cb(new Error('refusing to process entry'))
-  }
-
-  return this._process(entry, cb)
+  return this._process(entry, safe(cb))
 }
 
 LogBase.prototype.destroy = function (cb) {
   this._destroyed = true
   this._rawDB.close(cb)
 }
+
+;['put', 'get', 'del', 'batch'].forEach(function (method) {
+  LogBase.prototype[method] = function () {
+    var cb = arguments[arguments.length - 1]
+    if (this._destroyed) {
+      if (typeof cb === 'function') cb(new Error('destroyed'))
+      else this.emit('error', new Error('destroyed'))
+
+      return
+    }
+
+    return this._db[method].apply(this._db, arguments)
+  }
+})
