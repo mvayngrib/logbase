@@ -1,0 +1,49 @@
+{
+  "author": "Mark Vayngrib <mark.vayngrib@lablz.com> (http://github.com/mvayngrib)",
+  "bugs": {
+    "url": "https://github.com/mvayngrib/logbase/issues"
+  },
+  "description": "log and log-based database based on changes-feed",
+  "dependencies": {
+    "changes-feed": "git://github.com/mvayngrib/changes-feed",
+    "extend": "^3.0.0",
+    "level-sublevel": "^6.4.6",
+    "levelup": "^0.18.6",
+    "map-stream": "0.0.6",
+    "object.omit": "^1.1.0",
+    "readable-stream": "^2.0.1",
+    "safecb": "0.0.1",
+    "stream-combiner2": "^1.0.2",
+    "typeforce": "^1.1.2"
+  },
+  "devDependencies": {
+    "leveldown": "^1.3.0",
+    "memdown": "^1.0.0",
+    "pre-commit": "latest",
+    "rimraf": "^2.4.1",
+    "standard": "latest",
+    "tape": "latest"
+  },
+  "homepage": "https://github.com/mvayngrib/logbase",
+  "keywords": [
+    "log",
+    "datalog",
+    "append-only",
+    "database"
+  ],
+  "license": "ISC",
+  "main": "index.js",
+  "name": "logbase",
+  "pre-commit": [
+    "style"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mvayngrib/logbase.git"
+  },
+  "scripts": {
+    "style": "standard",
+    "test": "node test"
+  },
+  "version": "1.0.0"
+}
