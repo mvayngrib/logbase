@@ -29,8 +29,7 @@ function Log (path, options) {
 }
 
 Log.prototype._write = function (chunk, enc, next) {
-  this._log.append(chunk)
-  next()
+  this.append(chunk, next)
 }
 
 Log.prototype.close = function (cb) {
