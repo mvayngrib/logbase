@@ -77,20 +77,23 @@ LogBase.prototype._startReading = function () {
         live: false,
         since: self._position
       })
-      .pipe(filter(function (entry) {
-        return entry.id() <= logPosition
-      }))
-      .on('end', self.emit.bind(self, 'live'))
 
     var live = self._log.createReadStream({
         live: true,
         since: logPosition
       })
-      // .pipe(map(function (data, cb) {
+
+      // live.pipe(map(function (data, cb) {
+      //   console.log('live data', data.id())
       //   cb(null, data)
       // }))
 
+    self._streams = [catchUp, live]
     catchUp
+      .pipe(filter(function (entry) {
+        return entry.id() <= logPosition
+      }))
+      .on('end', self.emit.bind(self, 'live'))
       .pipe(addStream.obj(live))
       .pipe(self._ws)
       .on('error', self.emit.bind(self, 'error'))
@@ -114,6 +117,12 @@ LogBase.prototype.process = function (entry, cb) {
 
 LogBase.prototype.destroy = function (cb) {
   this._destroyed = true
+  if (this._streams) {
+    this._streams.forEach(function (s) {
+      s.unpipe()
+    })
+  }
+
   this._rawDB.close(cb)
 }
 

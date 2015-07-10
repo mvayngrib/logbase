@@ -9,6 +9,8 @@ var Log = require('../log')
 var LogEntry = require('../entry')
 
 test('basic', function (t) {
+  t.timeoutAfter(5000)
+
   var paths = {
     db: path.resolve(__dirname, 'db.db'),
     log: path.resolve(__dirname, 'log.db')
@@ -29,7 +31,6 @@ test('basic', function (t) {
     .on('data', function () {
       if (++numRead === numDead) {
         restart()
-        addEntries(log, numLive, numRead)
       }
     })
 
@@ -43,13 +44,13 @@ test('basic', function (t) {
   var ldb
   var processedId = 1
 
-  function restart () {
+  function restart (cb) {
     if (ldb) {
       return ldb.destroy(function (err) {
         if (err) throw err
 
         ldb = null
-        restart()
+        restart(cb)
       })
     }
 
@@ -70,16 +71,22 @@ test('basic', function (t) {
         t.end()
       }
     })
+
+    if (cb) cb()
   }
 
   var passed = 0
 
   function process (entry, cb) {
     var self = this
-    if (passed++ === 3) {
+    if (passed++ === 3 && processedId <= numDead) {
       // die a few times
       passed = 0
       return restart()
+    }
+
+    if (processedId === numDead) {
+      addEntries(log, numLive, numRead)
     }
 
     this.get('ids', function (err, ids) {
