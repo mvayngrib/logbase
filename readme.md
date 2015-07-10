@@ -10,21 +10,19 @@ _this module is used by [Tradle](https://github.com/tradle/about/wiki)_
 
 ```js
 
-var lb = require('../')
+var lb = require('logbase')
 var log = new lb.Log('path/to/db', {
   db: leveldown
 })
 
-var red = new Entry()
-  .tag('pretty', 'little', 'entry')
+var red = new lb.Entry()
   .set({
     name: 'roxie',
     color: 'red'
   })
   
 // change color
-var blue = new Entry()
-  .tag('pretty', 'little', 'entry')
+var blue = new lb.Entry()
   .set({
     name: 'roxie',
     color: 'blue'
@@ -38,12 +36,12 @@ var db = new lb.Base({
   log: log,
   db: levelup('path/to/another/db', { 
     db: leveldown,
-    valueEncoding: 'json'
+    valueEncoding: 'utf8'
   })
 })
 
 db._process = function (entry, cb) {
   this._db.put(entry.get('name'), entry.get('color'), cb)
-}  
+}
 
 ```
