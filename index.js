@@ -2,5 +2,5 @@
 module.exports = {
   Log: require('./log'),
   Entry: require('./entry'),
-  Base: require('./logBasedDB')
+  Base: require('./logbase')
 }
