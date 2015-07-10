@@ -39,6 +39,7 @@ test('basic', function (t) {
     expectedIds.push(i)
   }
 
+  // pre-add
   addEntries(log, numDead)
 
   var ldb
@@ -76,16 +77,19 @@ test('basic', function (t) {
   }
 
   var passed = 0
+  var live
 
   function process (entry, cb) {
     var self = this
-    if (passed++ === 3 && processedId <= numDead) {
+    live = processedId > numDead
+    if (!live && passed++ === 3) {
       // die a few times
       passed = 0
       return restart()
     }
 
     if (processedId === numDead) {
+      // add live
       addEntries(log, numLive, numRead)
     }
 
