@@ -112,11 +112,14 @@ Entry.prototype.copy = function (props) {
   return this
 }
 
-Entry.prototype.toJSON = function () {
+Entry.prototype.toJSON = function (skipMetadata) {
   this.validate()
-  return extend(true, {
-    _l: extend(true, {}, this._metadata)
-  }, this._props)
+  var json = extend(true, {}, this._props)
+  if (!skipMetadata) {
+    json._l = extend(true, {}, this._metadata)
+  }
+
+  return json
 }
 
 Entry.prototype.validate = function () {
