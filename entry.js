@@ -22,15 +22,19 @@ function Entry (id) {
 }
 
 Entry.prototype.meta =
-Entry.prototype.metadata = function (metadata) {
+Entry.prototype.metadata = function (name, value) {
   if (arguments.length === 0) {
     return extend(true, {}, this._metadata)
   }
 
-  if (typeof metadata === 'string') {
-    this._metadata[arguments[0]] = this._metadata[arguments[1]]
+  if (arguments.length === 1) {
+    if (typeof name === 'string') {
+      return this._metadata[name]
+    } else {
+      extend(true, this._metadata, name)
+    }
   } else {
-    extend(true, this._metadata, metadata)
+    this._metadata[name] = this._metadata[value]
   }
 
   return this
