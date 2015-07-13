@@ -69,12 +69,14 @@ Entry.prototype.copyTags = function (entry /*, tags */) {
 }
 
 Entry.prototype.id = function (id) {
-  if (typeof id === 'number') {
-    this._metadata.id = id
-    return this
-  } else {
+  if (typeof id === 'undefined') {
     return this._metadata.id
   }
+
+  if (id == null) delete this._metadata.id
+  else this._metadata.id = id
+
+  return this
 }
 
 Entry.prototype.tags = function () {
