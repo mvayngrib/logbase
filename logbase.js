@@ -24,6 +24,7 @@ function LogBase (options) {
 
   EventEmitter.call(this)
 
+  this._live = false
   this._log = options.log
   this._rawDB = options.db
   this._sub = this._rawDB.sublevel ? this._rawDB : sublevel(this._rawDB)
@@ -58,6 +59,10 @@ function LogBase (options) {
     self.emit('change', change.value)
   })
 
+  this.once('live', function () {
+    self._live = true
+  })
+
   this._ws = new Writable({ objectMode: true })
   this._ws._write = function (entry, enc, next) {
     if (!self.willProcess(entry)) {
@@ -66,6 +71,14 @@ function LogBase (options) {
       self.process(entry, next)
     }
   }
+}
+
+/**
+ * Whether the database has consumed all available log entries so far
+ * @return {Boolean}
+ */
+LogBase.prototype.isLive = function () {
+  return this._live
 }
 
 LogBase.prototype._startReading = function () {
@@ -130,7 +143,7 @@ LogBase.prototype.sublevel = function () {
   return this._db.sublevel.apply(this._db, arguments)
 }
 
-;['put', 'get', 'del', 'batch'].forEach(function (method) {
+;['put', 'get', 'del', 'batch', 'createReadStream'].forEach(function (method) {
   LogBase.prototype[method] = function () {
     var cb = arguments[arguments.length - 1]
     if (this._destroyed) {
