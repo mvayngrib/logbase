@@ -18,6 +18,8 @@ util.inherits(Log, Writable)
 function Log (path, options) {
   if (!(this instanceof Log)) return new Log(path, options)
 
+  Writable.call(this, { objectMode: true })
+
   options = extend({
     valueEncoding: 'json'
   }, options)
