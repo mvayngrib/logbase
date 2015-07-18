@@ -45,7 +45,7 @@ Log.prototype.createReadStream = function (options) {
     map(function (data, cb) {
       var hasValues = !options || options.values !== false
       if (hasValues) {
-        cb(null, new Entry(rebuf(data.value)))
+        cb(null, new Entry(rebuf(data.value)).id(data.change))
       } else {
         cb(null, data)
       }
