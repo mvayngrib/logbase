@@ -4,6 +4,7 @@ var EventEmitter = require('events').EventEmitter
 var Writable = require('readable-stream').Writable
 var typeforce = require('typeforce')
 var safe = require('safecb')
+var mutexify = require('mutexify')
 var sublevel = require('level-sublevel')
 var addStream = require('add-stream')
 var filter = require('./filterStream')
@@ -25,6 +26,7 @@ function LogBase (options) {
   EventEmitter.call(this)
 
   this._live = false
+  this._lock = mutexify()
   this._log = options.log
   this._rawDB = options.db
   this._sub = this._rawDB.sublevel ? this._rawDB : sublevel(this._rawDB)
@@ -125,7 +127,10 @@ LogBase.prototype.willProcess = function (entry) {
 }
 
 LogBase.prototype.process = function (entry, cb) {
-  return this._process(entry, safe(cb))
+  var self = this
+  this._lock(function (release) {
+    self._process(entry, safe(release.bind(null, cb)))
+  })
 }
 
 LogBase.prototype.destroy = function (cb) {
