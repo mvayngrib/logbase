@@ -34,7 +34,7 @@ Entry.prototype.metadata = function (name, value) {
       extend(true, this._metadata, name)
     }
   } else {
-    this._metadata[name] = this._metadata[value]
+    this._metadata[name] = value
   }
 
   return this
@@ -146,6 +146,10 @@ Entry.prototype.toJSON = function (skipMetadata) {
 
 Entry.prototype.validate = function () {
   return !!this._metadata.tags.length
+}
+
+Entry.prototype.clone = function () {
+  return Entry.fromJSON(this.toJSON(true))
 }
 
 Entry.fromJSON = function (json) {
