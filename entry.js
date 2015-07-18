@@ -1,5 +1,5 @@
 
-var extend = require('extend')
+var extend = require('xtend')
 // var RESERVED_PROPS = [
 //   'type',
 //   'id',
@@ -12,7 +12,7 @@ module.exports = Entry
 function Entry (props) {
   if (!(this instanceof Entry)) return new Entry(props)
 
-  this._props = extend(true, {
+  this._props = extend({
     timestamp: Date.now(),
     prev: []
   }, props)
@@ -49,11 +49,16 @@ Entry.prototype.get = function (name) {
 
 Entry.prototype.set = function (name, value) {
   if (typeof name === 'object') {
-    extend(true, this._props, name)
+    extend(this._props, name)
   } else {
     this._props[name] = value
   }
 
+  return this
+}
+
+Entry.prototype.unset = function (name) {
+  delete this._props[name]
   return this
 }
 
@@ -62,7 +67,7 @@ Entry.fromJSON = function (json) {
 }
 
 Entry.prototype.toJSON = function () {
-  return extend(true, {}, this._props)
+  return extend({}, this._props)
 }
 
 Entry.prototype.clone = function () {
