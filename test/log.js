@@ -19,18 +19,14 @@ test('basic', function (t) {
     t.deepEqual(data.toJSON(), entry.toJSON())
   })
 
-  var entry = new Entry()
-    .meta({
-      tags: ['tx']
-    })
-    .data({
-      hey: 'ho',
+  var entry = new Entry({
+    hey: 'ho',
+    blah: {
       blah: {
-        blah: {
-          blah: 1
-        }
+        blah: 1
       }
-    })
+    }
+  })
 
   t.throws(log.append.bind(log, entry.toJSON()), /Expected Entry/i)
   log.append(entry, function (err) {

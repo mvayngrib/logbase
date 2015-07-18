@@ -45,27 +45,12 @@ Log.prototype.createReadStream = function (options) {
     map(function (data, cb) {
       var hasValues = !options || options.values !== false
       if (hasValues) {
-        var entry = Entry
-          .fromJSON(rebuf(data.value))
-          .id(data.change)
-
-        cb(null, entry)
+        cb(null, new Entry(rebuf(data.value)))
       } else {
         cb(null, data)
       }
     })
   ]
-
-  if (options.tags) {
-    var tags = [].concat.apply([], options.tags)
-    pipeline.push(map(function (entry, cb) {
-      if (tags.every(entry.hasTag, entry)) {
-        cb(null, entry)
-      } else {
-        cb
-      }
-    }))
-  }
 
   return combine.obj.apply(combine, pipeline)
 }
@@ -79,7 +64,7 @@ Log.prototype.get = function (id, opts, cb) {
   return this._log.get(id, opts, function (err, val) {
     if (err) return cb(err)
 
-    var entry = Entry.fromJSON(rebuf(val))
+    var entry = new Entry(rebuf(val))
      .id(id)
 
     cb(null, entry)
@@ -88,7 +73,6 @@ Log.prototype.get = function (id, opts, cb) {
 
 Log.prototype.append = function (entry, cb) {
   typeforce('Entry', entry)
-  entry.validate()
   return this._log.append(entry.toJSON(), safe(cb))
 }
 
