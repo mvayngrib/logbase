@@ -2,7 +2,6 @@
 var typeforce = require('typeforce')
 var extend = require('extend')
 var rest = require('./rest')
-var ArrayProto = Array.prototype
 
 module.exports = Entry
 
@@ -12,7 +11,6 @@ function Entry (id) {
   this._props = {}
   this._metadata = {
     timestamp: Date.now(),
-    tags: [],
     prev: []
     // id: null,
     // prev: null
@@ -40,34 +38,6 @@ Entry.prototype.metadata = function (name, value) {
   return this
 }
 
-Entry.prototype.hasTag = function (tag) {
-  validateTag(tag)
-  return this._metadata.tags.indexOf(tag) !== -1
-}
-
-Entry.prototype.tag = function (tags) {
-  var myTags = this._metadata.tags
-  tags = ArrayProto.concat.apply([], arguments)
-  tags.forEach(validateTag)
-  tags.forEach(function (tag) {
-    if (myTags.indexOf(tag) === -1) {
-      myTags.push(tag)
-    }
-  })
-
-  return this
-}
-
-Entry.prototype.copyTags = function (entry /*, tags */) {
-  if (arguments.length === 1) this.tag(entry.tags())
-
-  rest(arguments).forEach(function (tag) {
-    if (entry.hasTag(tag)) this.tag(tag)
-  }, this)
-
-  return this
-}
-
 Entry.prototype.id = function (id) {
   if (typeof id === 'undefined') {
     return this._metadata.id
@@ -77,10 +47,6 @@ Entry.prototype.id = function (id) {
   else this._metadata.id = id
 
   return this
-}
-
-Entry.prototype.tags = function () {
-  return this._metadata.tags.slice()
 }
 
 Entry.prototype.prev = function (id) {
@@ -145,7 +111,7 @@ Entry.prototype.toJSON = function (skipMetadata) {
 }
 
 Entry.prototype.validate = function () {
-  return !!this._metadata.tags.length
+  return true // not sure if we need validation
 }
 
 Entry.prototype.clone = function () {
@@ -170,8 +136,4 @@ Entry.fromJSON = function (json) {
 
 function getProp (obj, name) {
   return obj instanceof Entry ? obj.get(name) : obj[name]
-}
-
-function validateTag (tag) {
-  typeforce('String', tag)
 }
