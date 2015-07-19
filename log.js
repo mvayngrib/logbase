@@ -74,8 +74,13 @@ Log.prototype.get = function (id, opts, cb) {
 }
 
 Log.prototype.append = function (entry, cb) {
+  var self = this
   typeforce('Entry', entry)
-  return this._log.append(entry.toJSON(), safe(cb))
+  this.emit('appending', entry)
+  return this._log.append(entry.toJSON(), function () {
+    self.emit('appended', entry)
+    if (cb) cb()
+  })
 }
 
 Log.prototype.last = function (cb) {
