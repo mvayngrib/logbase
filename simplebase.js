@@ -1,70 +1,85 @@
 
-var Hooks = require('level-hooks')
+// var Hooks = require('level-hooks')
 var pl = require('pull-level')
 var pull = require('pull-stream')
 var mutexify = require('mutexify')
-var LAST_CHANGE_KEY = '~counter'
+var sublevel = require('level-sublevel')
+var LAST_CHANGE_KEY = 'count'
+var COUNTER_SUBLEVEL = '~counter'
 
 module.exports = function augment (db, log, processEntry) {
   var ready
   var live
   var closing
-  var position
-  var readPos = position
+  var myPosition
+  var lastSaved
   var logPos
   var lock = mutexify()
 
-  Hooks(db)
+  var sub = sublevel(db)
+  var counter = sub.sublevel(COUNTER_SUBLEVEL)
 
-  db.hooks.pre({ start: '', end: '~' }, function (change, add, batch) {
-    if (change.key === LAST_CHANGE_KEY) {
-      throw new Error(LAST_CHANGE_KEY + ' is a reserved key')
-    }
+  sub.pre(prehook)
 
-    if (batch && batch[batch.length - 1] !== change) return
+  var nextSub = sub.sublevel
+  sub.sublevel = function () {
+    var sublev = nextSub.apply(this, arguments)
+    sublev.pre(prehook)
+    return sublev
+  }
 
-    add({
-      type: 'put',
-      key: LAST_CHANGE_KEY,
-      value: ++position
-    })
+  counter.post(function (change) {
+    sub.emit('change', change.value)
   })
 
-  db.hooks.post(function (change) {
-    if (change.key === LAST_CHANGE_KEY) {
-      db.emit('change', change.value)
-    }
-  })
-
-  db.get(LAST_CHANGE_KEY, function (err, id) {
+  counter.get(LAST_CHANGE_KEY, function (err, id) {
     if (err) {
       if (!err.notFound) throw err
     }
 
-    position = id || 0
+    lastSaved = myPosition = id || 0
     ready = true
-    db.emit('ready')
+    sub.emit('ready')
     read()
   })
 
-  db.isLive = function () {
+  sub.isLive = function () {
     return live
   }
 
-  db.isReady = function () {
+  sub.isReady = function () {
     return ready
   }
 
-  db.onLive = function (cb) {
-    if (db.isLive()) return cb()
-    else db.once('live', cb)
+  sub.onLive = function (cb) {
+    if (sub.isLive()) return cb()
+    else sub.once('live', cb)
   }
 
   db.once('closing', function () {
     closing = true
   })
 
-  return db
+  return sub
+
+  function prehook (change, add, batch) {
+    if (change.key === LAST_CHANGE_KEY) {
+      throw new Error(LAST_CHANGE_KEY + ' is a reserved key')
+    }
+
+    if (myPosition === lastSaved || batch[batch.length - 1] !== change) {
+      return
+    }
+
+    lastSaved = myPosition
+
+    add({
+      type: 'put',
+      key: LAST_CHANGE_KEY,
+      value: myPosition,
+      prefix: counter
+    })
+  }
 
   function read () {
     log.on('appending', function () {
@@ -73,7 +88,7 @@ module.exports = function augment (db, log, processEntry) {
     })
 
     log.last(function (err, _logPos) {
-      if (err) return db.emit('error', err)
+      if (err) return sub.emit('error', err)
 
       logPos = _logPos
       checkLive()
@@ -83,9 +98,9 @@ module.exports = function augment (db, log, processEntry) {
 
   function checkLive () {
     // may happen more than once
-    if (readPos === logPos) {
+    if (myPosition === logPos) {
       live = true
-      db.emit('live')
+      sub.emit('live')
     }
   }
 
@@ -94,11 +109,12 @@ module.exports = function augment (db, log, processEntry) {
       pl.read(log, {
         tail: true,
         live: true,
-        since: position
+        since: myPosition
       }),
       pull.asyncMap(function (entry, cb) {
         // if (closing) return cb()
 
+        myPosition++
         lock(function (release) {
           // if (closing) return release(cb)
 
@@ -110,7 +126,6 @@ module.exports = function augment (db, log, processEntry) {
 
           processEntry(entry, function (err) {
             clearTimeout(timeout)
-            readPos++
             checkLive()
             // db.emit('tick')
             release(cb, err, entry)

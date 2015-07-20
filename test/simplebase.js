@@ -23,6 +23,8 @@ test('basic', function (t) {
     valueEncoding: 'json'
   })
 
+  log.setMaxListeners(0)
+
   var numRead = 0
   var numDead = 10
   var numLive = 10
@@ -43,6 +45,7 @@ test('basic', function (t) {
   addEntries(log, numDead)
 
   var ldb
+  var base
   var processedId = 1
 
   function restart (cb) {
@@ -60,14 +63,18 @@ test('basic', function (t) {
       valueEncoding: 'json'
     })
 
-    SimpleBase(ldb, log, processEntry)
+    base = SimpleBase(ldb, log, processEntry)
 
-    ldb.on('change', function (id) {
+    base.on('change', function (id) {
       t.equal(id, processedId++)
-      if (processedId - 1 === numEntries) {
+    })
+
+    base.once('live', function () {
+      addEntries(log, numLive, numRead)
+      base.once('live', function () {
         cleanup()
         t.end()
-      }
+      })
     })
 
     if (cb) cb()
@@ -84,19 +91,14 @@ test('basic', function (t) {
       return restart()
     }
 
-    if (processedId === numDead) {
-      // add live
-      addEntries(log, numLive, numRead)
-    }
-
-    ldb.get('ids', function (err, ids) {
+    base.get('ids', function (err, ids) {
       if (err) {
         if (err.notFound) ids = []
         else throw err
       }
 
       ids.push(entry.id())
-      ldb.batch([{ type: 'put', key: 'ids', value: ids }], cb)
+      base.batch([{ type: 'put', key: 'ids', value: ids }], cb)
     })
   }
 
