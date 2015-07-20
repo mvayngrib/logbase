@@ -8,15 +8,20 @@ var LAST_CHANGE_KEY = '~counter'
 module.exports = function augment (db, log, processEntry) {
   var ready
   var live
+  var closing
   var position
+  var readPos = position
+  var logPos
   var lock = mutexify()
 
   Hooks(db)
 
-  db.hooks.pre({ start: '', end: '~' }, function (change, add) {
+  db.hooks.pre({ start: '', end: '~' }, function (change, add, batch) {
     if (change.key === LAST_CHANGE_KEY) {
       throw new Error(LAST_CHANGE_KEY + ' is a reserved key')
     }
+
+    if (batch && batch[batch.length - 1] !== change) return
 
     add({
       type: 'put',
@@ -50,12 +55,20 @@ module.exports = function augment (db, log, processEntry) {
     return ready
   }
 
+  db.onLive = function (cb) {
+    if (db.isLive()) return cb()
+    else db.once('live', cb)
+  }
+
+  db.once('closing', function () {
+    closing = true
+  })
+
   return db
 
   function read () {
-    var readPos = position
-    var logPos
     log.on('appending', function () {
+      live = false
       logPos++
     })
 
@@ -64,32 +77,47 @@ module.exports = function augment (db, log, processEntry) {
 
       logPos = _logPos
       checkLive()
-
-      pull(
-        pl.read(log, {
-          tail: true,
-          live: true,
-          since: position
-        }),
-        pull.asyncMap(function (op, cb) {
-          lock(function (release) {
-            processEntry(op, function (err) {
-              readPos++
-              checkLive()
-              release(cb, err, op)
-            })
-          })
-        }),
-        pull.drain()
-      )
+      doRead()
     })
+  }
 
-    function checkLive () {
-      // may happen more than once
-      if (readPos === logPos) {
-        live = true
-        db.emit('live')
-      }
+  function checkLive () {
+    // may happen more than once
+    if (readPos === logPos) {
+      live = true
+      db.emit('live')
     }
+  }
+
+  function doRead () {
+    pull(
+      pl.read(log, {
+        tail: true,
+        live: true,
+        since: position
+      }),
+      pull.asyncMap(function (entry, cb) {
+        // if (closing) return cb()
+
+        lock(function (release) {
+          // if (closing) return release(cb)
+
+          var timeout = setTimeout(function () {
+            if (!closing) {
+              throw new Error('timed out processing:' + JSON.stringify(entry.toJSON(), null, 2))
+            }
+          }, 2000)
+
+          processEntry(entry, function (err) {
+            clearTimeout(timeout)
+            readPos++
+            checkLive()
+            // db.emit('tick')
+            release(cb, err, entry)
+          })
+        })
+      }),
+      pull.drain()
+    )
   }
 }

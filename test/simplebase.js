@@ -9,7 +9,7 @@ var Log = require('../log')
 var LogEntry = require('../entry')
 
 test('basic', function (t) {
-  // t.timeoutAfter(5000)
+  t.timeoutAfter(5000)
 
   var paths = {
     db: path.resolve(__dirname, 'simpledb.db'),
@@ -32,9 +32,6 @@ test('basic', function (t) {
       if (++numRead === numDead) {
         restart()
       }
-    })
-    .on('end', function () {
-      console.log('log ended')
     })
 
   var expectedIds = []
@@ -63,11 +60,11 @@ test('basic', function (t) {
       valueEncoding: 'json'
     })
 
-    SimpleBase(ldb, log, process)
+    SimpleBase(ldb, log, processEntry)
 
     ldb.on('change', function (id) {
       t.equal(id, processedId++)
-      if (processedId === numEntries) {
+      if (processedId - 1 === numEntries) {
         cleanup()
         t.end()
       }
@@ -79,7 +76,7 @@ test('basic', function (t) {
   var passed = 0
   var live
 
-  function process (entry, cb) {
+  function processEntry (entry, cb) {
     live = processedId > numDead
     if (!live && passed++ === 3) {
       // die a few times
@@ -104,6 +101,9 @@ test('basic', function (t) {
   }
 
   function cleanup () {
+    if (ldb) ldb.close()
+    if (log) log.close()
+
     for (var p in paths) {
       clear(paths[p])
     }

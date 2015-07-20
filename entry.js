@@ -1,5 +1,5 @@
 
-var extend = require('xtend')
+var extend = require('xtend/mutable')
 // var RESERVED_PROPS = [
 //   'type',
 //   'id',
