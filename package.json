@@ -7,7 +7,6 @@
   "dependencies": {
     "add-stream": "^1.0.0",
     "changes-feed": "git://github.com/mvayngrib/changes-feed",
-    "level-hooks": "^4.5.0",
     "level-sublevel": "^6.4.6",
     "levelup": "^0.18.6",
     "map-stream": "0.0.6",
