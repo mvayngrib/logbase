@@ -1,24 +1,17 @@
 
-var path = require('path')
 var test = require('tape')
 var levelup = require('levelup')
-var leveldown = require('leveldown')
-var rimraf = require('rimraf')
+var leveldown = require('memdown')
+var levelQuery = require('level-queryengine')
+var jsonQuery = require('jsonquery-engine')
 var SimpleBase = require('../simplebase')
 var Log = require('../log')
-var LogEntry = require('../entry')
+var Entry = require('../entry')
 
 test('basic', function (t) {
   t.timeoutAfter(5000)
 
-  var paths = {
-    db: path.resolve(__dirname, 'simpledb.db'),
-    log: path.resolve(__dirname, 'simpledblog.db')
-  }
-
-  cleanup()
-
-  var log = new Log(paths.log, {
+  var log = new Log('log', {
     db: leveldown,
     valueEncoding: 'json'
   })
@@ -58,10 +51,13 @@ test('basic', function (t) {
       })
     }
 
-    ldb = levelup(paths.db, {
+    ldb = levelQuery(levelup('ldb', {
       db: leveldown,
       valueEncoding: 'json'
-    })
+    }))
+
+    ldb.query.use(jsonQuery())
+    ldb.ensureIndex('length')
 
     base = SimpleBase(ldb, log, processEntry)
 
@@ -83,7 +79,7 @@ test('basic', function (t) {
   var passed = 0
   var live
 
-  function processEntry (entry, cb) {
+  function processEntry (entry, add, cb) {
     live = processedId > numDead
     if (!live && passed++ === 3) {
       // die a few times
@@ -98,28 +94,21 @@ test('basic', function (t) {
       }
 
       ids.push(entry.id())
-      base.batch([{ type: 'put', key: 'ids', value: ids }], cb)
+      add({ type: 'put', key: 'ids', value: ids })
+      cb()
     })
   }
 
   function cleanup () {
     if (ldb) ldb.close()
     if (log) log.close()
-
-    for (var p in paths) {
-      clear(paths[p])
-    }
   }
 })
-
-function clear (dbPath) {
-  rimraf.sync(dbPath)
-}
 
 function addEntries (log, num, offset) {
   offset = offset || 0
   for (var i = 1; i <= num; i++) {
-    var entry = new LogEntry()
+    var entry = new Entry()
       .set('count', i + offset)
 
     log.append(entry)

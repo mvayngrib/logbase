@@ -1,5 +1,4 @@
 
-var assert = require('assert')
 var util = require('util')
 var extend = require('extend')
 var combine = require('stream-combiner2')
