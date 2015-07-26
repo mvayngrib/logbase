@@ -45,3 +45,7 @@ db._process = function (entry, cb) {
 }
 
 ```
+
+## TODO
+
+Remove/isolate all "write" methods

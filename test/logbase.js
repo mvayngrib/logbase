@@ -19,8 +19,7 @@ test('basic', function (t) {
   cleanup()
 
   var log = new Log(paths.log, {
-    db: leveldown,
-    valueEncoding: 'json'
+    db: leveldown
   })
 
   var numRead = 0

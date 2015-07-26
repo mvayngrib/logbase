@@ -15,16 +15,25 @@ var Entry = require('./entry')
 module.exports = Log
 util.inherits(Log, Writable)
 
+var entryEncoding = {
+  encode: function (entry) {
+    return JSON.stringify(entry.toJSON())
+  },
+  decode: function (entry) {
+    return new Entry(rebuf(JSON.parse(entry)))
+  },
+  buffer: false,
+  type: 'logEntry'
+}
+
 function Log (path, options) {
   if (!(this instanceof Log)) return new Log(path, options)
 
   Writable.call(this, { objectMode: true })
 
-  options = extend({
-    valueEncoding: 'json'
-  }, options)
+  options = extend(true, {}, options)
+  options.valueEncoding = entryEncoding
 
-  assert.equal(options.valueEncoding, 'json')
   this._db = levelup(path, options)
   this._log = changesFeed(this._db)
 }
@@ -47,7 +56,7 @@ Log.prototype.createReadStream = function (options) {
     map(function (data, cb) {
       var hasValues = !options || options.values !== false
       if (hasValues) {
-        cb(null, new Entry(rebuf(data.value)).id(data.change))
+        cb(null, data.value.id(data.change))
       } else {
         cb(null, data)
       }
@@ -63,12 +72,10 @@ Log.prototype.get = function (id, opts, cb) {
     opts = {}
   }
 
-  return this._log.get(id, opts, function (err, val) {
+  return this._log.get(id, opts, function (err, entry) {
     if (err) return cb(err)
 
-    var entry = new Entry(rebuf(val))
-     .id(id)
-
+    entry.id(id)
     cb(null, entry)
   })
 }
@@ -77,7 +84,7 @@ Log.prototype.append = function (entry, cb) {
   var self = this
   typeforce('Entry', entry)
   this.emit('appending', entry)
-  return this._log.append(entry.toJSON(), function () {
+  return this._log.append(entry, function () {
     self.emit('appended', entry)
     if (cb) cb()
   })
