@@ -14,7 +14,6 @@ test('basic', function (t) {
   var liveStream = log.createReadStream({ live: true })
   liveStream.once('data', function (data) {
     t.ok(data instanceof Entry)
-    debugger
     entry.id(data.id()) // id should be the only thing missing
     t.deepEqual(data.toJSON(), entry.toJSON())
   })

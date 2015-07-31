@@ -60,6 +60,8 @@ module.exports = function augment (db, log, processEntry) {
     closing = true
   })
 
+  sub.close = db.close.bind(db)
+
   return sub
 
   function prehook (change, add, batch) {

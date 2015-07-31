@@ -1,19 +1,41 @@
 
-var path = require('path')
 var test = require('tape')
 var levelup = require('levelup')
-var leveldown = require('leveldown')
-var rimraf = require('rimraf')
+var leveldown = require('memdown')
 var SimpleBase = require('../simplebase')
 var Log = require('../log')
 var LogEntry = require('../entry')
+
+test('start/stop', function (t) {
+  t.plan(1)
+  t.timeoutAfter(1000)
+
+  var log = new Log('simpledblog.db', {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  log.setMaxListeners(0)
+  var ldb = levelup('simpledb.db', {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  var base = SimpleBase(ldb, log, function (entry, cb) {
+    base.close(function () {
+      t.pass()
+    })
+  })
+
+  addEntries(log, 1)
+})
 
 test('basic', function (t) {
   t.timeoutAfter(5000)
 
   var paths = {
-    db: path.resolve(__dirname, 'simpledb.db'),
-    log: path.resolve(__dirname, 'simpledblog.db')
+    db: 'simpledb.db',
+    log: 'simpledblog.db'
   }
 
   cleanup()
@@ -49,11 +71,11 @@ test('basic', function (t) {
   var processedId = 1
 
   function restart (cb) {
-    if (ldb) {
-      return ldb.close(function (err) {
+    if (base) {
+      return base.close(function (err) {
         if (err) throw err
 
-        ldb = null
+        base = null
         restart(cb)
       })
     }
@@ -103,18 +125,10 @@ test('basic', function (t) {
   }
 
   function cleanup () {
-    if (ldb) ldb.close()
+    if (base) base.close()
     if (log) log.close()
-
-    for (var p in paths) {
-      clear(paths[p])
-    }
   }
 })
-
-function clear (dbPath) {
-  rimraf.sync(dbPath)
-}
 
 function addEntries (log, num, offset) {
   offset = offset || 0
