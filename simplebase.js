@@ -17,6 +17,7 @@ module.exports = function augment (db, log, processEntry) {
   var lock = mutexify()
 
   var sub = sublevel(db)
+  sub.setMaxListeners(0)
   var counter = sub.sublevel(COUNTER_SUBLEVEL)
 
   sub.pre(prehook)
