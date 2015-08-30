@@ -21,10 +21,14 @@ test('start/stop', function (t) {
     valueEncoding: 'json'
   })
 
-  var base = SimpleBase(ldb, log, function (entry, cb) {
-    base.close(function () {
-      t.pass()
-    })
+  var base = SimpleBase({
+    db: ldb,
+    log: log,
+    process: function (entry, cb) {
+      base.close(function () {
+        t.pass()
+      })
+    }
   })
 
   addEntries(log, 1)
@@ -85,7 +89,11 @@ test('basic', function (t) {
       valueEncoding: 'json'
     })
 
-    base = SimpleBase(ldb, log, processEntry)
+    base = SimpleBase({
+      db: ldb,
+      log: log,
+      process: processEntry
+    })
 
     base.on('change', function (id) {
       t.equal(id, processedId++)

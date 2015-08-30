@@ -1,5 +1,6 @@
 
 // var Hooks = require('level-hooks')
+var typeforce = require('typeforce')
 var pl = require('pull-level')
 var pull = require('pull-stream')
 var mutexify = require('mutexify')
@@ -7,7 +8,16 @@ var sublevel = require('level-sublevel')
 var LAST_CHANGE_KEY = 'count'
 var COUNTER_SUBLEVEL = '~counter'
 
-module.exports = function augment (db, log, processEntry) {
+module.exports = function augment (opts) {
+  typeforce({
+    db: 'Object',
+    log: 'Log',
+    process: 'Function'
+  }, opts)
+
+  var db = opts.db
+  var log = opts.log
+  var processEntry = opts.process
   var ready
   var live
   var closing

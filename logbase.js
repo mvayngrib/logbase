@@ -1,4 +1,3 @@
-
 var util = require('util')
 var EventEmitter = require('events').EventEmitter
 var Writable = require('readable-stream').Writable
@@ -89,19 +88,19 @@ LogBase.prototype._startReading = function () {
     if (err) throw err
 
     var catchUp = self._log.createReadStream({
-        live: false,
-        since: self._position
-      })
+      live: false,
+      since: self._position
+    })
 
     var live = self._log.createReadStream({
-        live: true,
-        since: logPosition
-      })
+      live: true,
+      since: logPosition
+    })
 
-      // live.pipe(map(function (data, cb) {
-      //   console.log('live data', data.id())
-      //   cb(null, data)
-      // }))
+    // live.pipe(map(function (data, cb) {
+    //   console.log('live data', data.id())
+    //   cb(null, data)
+    // }))
 
     self._streams = [catchUp, live]
     catchUp

@@ -1,6 +1,6 @@
 
 var util = require('util')
-var extend = require('extend')
+var extend = require('xtend')
 var combine = require('stream-combiner2')
 var Writable = require('readable-stream').Writable
 var levelup = require('levelup')
@@ -30,7 +30,7 @@ function Log (path, options) {
 
   Writable.call(this, { objectMode: true })
 
-  options = extend(true, {}, options)
+  options = extend(options)
   options.valueEncoding = entryEncoding
 
   this._db = levelup(path, options)
