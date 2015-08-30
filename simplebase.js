@@ -7,6 +7,7 @@ var mutexify = require('mutexify')
 var sublevel = require('level-sublevel')
 var LAST_CHANGE_KEY = 'count'
 var COUNTER_SUBLEVEL = '~counter'
+var DEFAULT_TIMEOUT = 2000
 
 module.exports = function augment (opts) {
   typeforce({
@@ -18,6 +19,7 @@ module.exports = function augment (opts) {
   var db = opts.db
   var log = opts.log
   var processEntry = opts.process
+  var entryTimeout = opts.timeout === false ? false : opts.timeout || DEFAULT_TIMEOUT
   var ready
   var live
   var closing
@@ -131,14 +133,18 @@ module.exports = function augment (opts) {
         lock(function (release) {
           // if (closing) return release(cb)
 
-          var timeout = setTimeout(function () {
-            if (!closing) {
-              throw new Error('timed out processing:' + JSON.stringify(entry.toJSON(), null, 2))
-            }
-          }, 2000)
+          var timeout
+          if (entryTimeout !== false) {
+            timeout = setTimeout(function () {
+              if (!closing) {
+                sub.emit('error',
+                  new Error('timed out processing:' + entry))
+              }
+            }, entryTimeout)
+          }
 
           processEntry(entry, function (err) {
-            clearTimeout(timeout)
+            if (timeout) clearTimeout(timeout)
             checkLive()
             // db.emit('tick')
             release(cb, err, entry)

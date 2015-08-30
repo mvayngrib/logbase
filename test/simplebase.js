@@ -5,18 +5,23 @@ var leveldown = require('memdown')
 var SimpleBase = require('../simplebase')
 var Log = require('../log')
 var LogEntry = require('../entry')
+var counter = 0
+
+function nextName () {
+  return (counter++) + '.db'
+}
 
 test('start/stop', function (t) {
   t.plan(1)
   t.timeoutAfter(1000)
 
-  var log = new Log('simpledblog.db', {
+  var log = new Log(nextName(), {
     db: leveldown,
     valueEncoding: 'json'
   })
 
   log.setMaxListeners(0)
-  var ldb = levelup('simpledb.db', {
+  var ldb = levelup(nextName(), {
     db: leveldown,
     valueEncoding: 'json'
   })
@@ -29,6 +34,70 @@ test('start/stop', function (t) {
         t.pass()
       })
     }
+  })
+
+  addEntries(log, 1)
+})
+
+test('no timeout', function (t) {
+  t.plan(1)
+
+  var log = new Log(nextName(), {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  log.setMaxListeners(0)
+  var ldb = levelup(nextName(), {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  var base = SimpleBase({
+    timeout: false,
+    db: ldb,
+    log: log,
+    process: function (entry, cb) {
+      setTimeout(function () {
+        cb()
+        base.close(function () {
+          t.pass()
+        })
+      }, 3000)
+    }
+  })
+
+  base.on('error', t.error)
+
+  addEntries(log, 1)
+})
+
+test('timeout', function (t) {
+  var log = new Log(nextName(), {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  log.setMaxListeners(0)
+  var ldb = levelup(nextName(), {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  var base = SimpleBase({
+    timeout: 100,
+    db: ldb,
+    log: log,
+    process: function (entry, cb) {
+      setTimeout(function () {
+        cb()
+      }, 200)
+    }
+  })
+
+  base.on('error', function (err) {
+    t.ok(/timed out/.test(err.message))
+    base.close(t.end)
   })
 
   addEntries(log, 1)
