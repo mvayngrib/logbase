@@ -6,7 +6,8 @@
   "description": "log and log-based database based on changes-feed",
   "dependencies": {
     "add-stream": "^1.0.0",
-    "changes-feed": "git://github.com/mvayngrib/changes-feed#82e727a59",
+    "changes-feed": "mvayngrib/changes-feed",
+    "debug": "^2.2.0",
     "level-sublevel": "^6.4.6",
     "levelup": "^0.18.6",
     "map-stream": "0.0.6",

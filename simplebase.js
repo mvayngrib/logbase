@@ -1,5 +1,6 @@
 
 // var Hooks = require('level-hooks')
+var debug = require('debug')('logbase')
 var typeforce = require('typeforce')
 var pl = require('pull-level')
 var pull = require('pull-stream')
@@ -9,6 +10,15 @@ var LAST_CHANGE_KEY = 'count'
 var COUNTER_SUBLEVEL = '~counter'
 var DEFAULT_TIMEOUT = 2000
 
+/**
+ * augment a levelup to be a log consumer db
+ * @param  {Object} opts
+ * @param  {LevelUp} opts.db
+ * @param  {Log} opts.log
+ * @param  {Function} opts.process entry processor function
+ * @param  {Boolean} opts.autostart (optional, default: true) start when ready
+ * @return {sublevel}
+ */
 module.exports = function augment (opts) {
   typeforce({
     db: 'Object',
@@ -16,10 +26,12 @@ module.exports = function augment (opts) {
     process: 'Function'
   }, opts)
 
+  var autostart = opts.autostart !== false
   var db = opts.db
   var log = opts.log
   var processEntry = opts.process
   var entryTimeout = opts.timeout === false ? false : opts.timeout || DEFAULT_TIMEOUT
+  var running
   var ready
   var live
   var closing
@@ -53,7 +65,7 @@ module.exports = function augment (opts) {
     lastSaved = myPosition = id || 0
     ready = true
     sub.emit('ready')
-    read()
+    if (autostart) sub.start()
   })
 
   sub.isLive = function () {
@@ -74,6 +86,13 @@ module.exports = function augment (opts) {
   })
 
   sub.close = db.close.bind(db)
+  sub.start = function () {
+    if (ready) {
+      if (!running) read()
+    } else {
+      autostart = true
+    }
+  }
 
   return sub
 
@@ -97,6 +116,8 @@ module.exports = function augment (opts) {
   }
 
   function read () {
+    // console.log('started!', db.db.location)
+    running = true
     log.on('appending', function () {
       live = false
       logPos++
@@ -130,28 +151,42 @@ module.exports = function augment (opts) {
         // if (closing) return cb()
 
         myPosition++
-        lock(function (release) {
-          // if (closing) return release(cb)
-
-          var timeout
-          if (entryTimeout !== false) {
-            timeout = setTimeout(function () {
-              if (!closing) {
-                sub.emit('error',
-                  new Error('timed out processing:' + entry))
-              }
-            }, entryTimeout)
-          }
-
-          processEntry(entry, function (err) {
-            if (timeout) clearTimeout(timeout)
-            checkLive()
-            // db.emit('tick')
-            release(cb, err, entry)
-          })
-        })
+        lock(processorFor(entry, cb))
       }),
       pull.drain()
     )
   }
+
+  function processorFor (entry, cb) {
+    var timedOut
+    var timeout
+    return function (release) {
+      // if (closing) return release(cb)
+      if (entryTimeout !== false) {
+        timeout = setTimeout(onTimedOut, entryTimeout)
+      }
+
+      processEntry(entry, function (err) {
+        if (timedOut) debug('timed out but eventually finished: ' + stringify(entry))
+        if (timeout) clearTimeout(timeout)
+
+        checkLive()
+        // db.emit('tick')
+        release(cb, err, entry)
+      })
+    }
+
+    function onTimedOut () {
+      if (closing) return
+
+      timedOut = true
+      var msg = 'timed out processing:' + stringify(entry)
+      debug(msg, db.db.location)
+      sub.emit('error', new Error(msg))
+    }
+  }
+}
+
+function stringify (entry) {
+  return JSON.stringify(entry.toJSON())
 }
