@@ -34,10 +34,11 @@ module.exports = function augment (opts) {
   var running
   var ready
   var live
+  var tmpLive = true
   var closing
   var myPosition
   var lastSaved
-  var logPos
+  var logPos = 0
   var lock = mutexify()
 
   var sub = sublevel(db)
@@ -118,26 +119,41 @@ module.exports = function augment (opts) {
   function read () {
     // console.log('started!', db.db.location)
     running = true
+
     log.on('appending', function () {
+      tmpLive = false
       live = false
-      logPos++
     })
 
+    getPos(doRead)
+  }
+
+  function getPos (cb) {
     log.last(function (err, _logPos) {
       if (err) return sub.emit('error', err)
 
       logPos = _logPos
-      checkLive()
-      doRead()
+      live = tmpLive
+      if (live) sub.emit('live')
+      if (cb) cb()
     })
   }
 
-  function checkLive () {
-    // may happen more than once
-    if (myPosition === logPos) {
-      live = true
-      sub.emit('live')
+  function postProcess () {
+    console.log('CHECK LIVE', myPosition, logPos)
+    if (live) return
+
+    if (myPosition > logPos) {
+      throw new Error('ahead of log?')
     }
+
+    if (myPosition === logPos) getPos()
+
+    // // may happen more than once
+    // if (myPosition === logPos) {
+    //   live = true
+    //   sub.emit('live')
+    // }
   }
 
   function doRead () {
@@ -151,6 +167,8 @@ module.exports = function augment (opts) {
         // if (closing) return cb()
 
         myPosition++
+        if (myPosition > logPos) logPos = myPosition
+
         lock(processorFor(entry, cb))
       }),
       pull.drain()
@@ -170,7 +188,7 @@ module.exports = function augment (opts) {
         if (timedOut) debug('timed out but eventually finished: ' + stringify(entry))
         if (timeout) clearTimeout(timeout)
 
-        checkLive()
+        postProcess()
         // db.emit('tick')
         release(cb, err, entry)
       })
