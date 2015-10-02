@@ -9,6 +9,7 @@ var sublevel = require('level-sublevel')
 var LAST_CHANGE_KEY = 'count'
 var COUNTER_SUBLEVEL = '~counter'
 var DEFAULT_TIMEOUT = 2000
+var noop = function () {}
 
 /**
  * augment a levelup to be a log consumer db
@@ -29,16 +30,16 @@ module.exports = function augment (opts) {
   var autostart = opts.autostart !== false
   var db = opts.db
   var log = opts.log
+  var processing
   var processEntry = opts.process
   var entryTimeout = opts.timeout === false ? false : opts.timeout || DEFAULT_TIMEOUT
+  var checkLiveTimeout
   var running
   var ready
   var live
-  var tmpLive = true
   var closing
   var myPosition
   var lastSaved
-  var logPos = 0
   var lock = mutexify()
 
   var sub = sublevel(db)
@@ -119,41 +120,50 @@ module.exports = function augment (opts) {
   function read () {
     // console.log('started!', db.db.location)
     running = true
-
     log.on('appending', function () {
-      tmpLive = false
       live = false
     })
 
-    getPos(doRead)
+    doRead()
   }
 
-  function getPos (cb) {
-    log.last(function (err, _logPos) {
-      if (err) return sub.emit('error', err)
+  function checkLive (cb) {
+    cb = cb || noop
 
-      logPos = _logPos
-      live = tmpLive
-      if (live) sub.emit('live')
-      if (cb) cb()
+    var tmpLive = true
+    log.on('appending', notLive)
+    log.last(function (err, logPos) {
+      log.removeListener('appending', notLive)
+
+      if (err) {
+        sub.emit('error', err)
+        cb(err)
+      }
+
+      var cursorPos = processing ? myPosition - 1 : myPosition
+      tmpLive = tmpLive && logPos === cursorPos
+
+      if (!tmpLive) {
+        live = false
+        // do nothing
+      } else {
+        if (!live) {
+          live = true
+          sub.emit('live')
+        }
+      }
+
+      cb(null, live)
     })
+
+    function notLive () {
+      tmpLive = false
+    }
   }
 
   function postProcess () {
-    console.log('CHECK LIVE', myPosition, logPos)
-    if (live) return
-
-    if (myPosition > logPos) {
-      throw new Error('ahead of log?')
-    }
-
-    if (myPosition === logPos) getPos()
-
-    // // may happen more than once
-    // if (myPosition === logPos) {
-    //   live = true
-    //   sub.emit('live')
-    // }
+    clearTimeout(checkLiveTimeout)
+    checkLiveTimeout = setTimeout(checkLive, 200)
   }
 
   function doRead () {
@@ -164,11 +174,6 @@ module.exports = function augment (opts) {
         since: myPosition
       }),
       pull.asyncMap(function (entry, cb) {
-        // if (closing) return cb()
-
-        myPosition++
-        if (myPosition > logPos) logPos = myPosition
-
         lock(processorFor(entry, cb))
       }),
       pull.drain()
@@ -179,28 +184,35 @@ module.exports = function augment (opts) {
     var timedOut
     var timeout
     return function (release) {
-      // if (closing) return release(cb)
       if (entryTimeout !== false) {
         timeout = setTimeout(onTimedOut, entryTimeout)
       }
 
+      processing = true
+      myPosition++
       processEntry(entry, function (err) {
-        if (timedOut) debug('timed out but eventually finished: ' + stringify(entry))
+        processing = false
         if (timeout) clearTimeout(timeout)
 
+        if (timedOut) {
+          debug('timed out but eventually finished: ' + stringify(entry))
+        } else {
+          release(cb, err, entry)
+        }
+
         postProcess()
-        // db.emit('tick')
-        release(cb, err, entry)
       })
-    }
 
-    function onTimedOut () {
-      if (closing) return
+      function onTimedOut () {
+        if (closing) return
 
-      timedOut = true
-      var msg = 'timed out processing:' + stringify(entry)
-      debug(msg, db.db.location)
-      sub.emit('error', new Error(msg))
+        timedOut = true
+        var msg = 'timed out processing:' + stringify(entry)
+        var err = new Error(msg)
+        debug(msg, db.db.location)
+        sub.emit('error', err)
+        if (!closing) release(cb, err, entry)
+      }
     }
   }
 }

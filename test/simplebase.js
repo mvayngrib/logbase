@@ -13,10 +13,11 @@ function nextName () {
 
 test('add while reading', function (t) {
   var numEntries = 15
-  t.plan(15)
+  // t.plan(15)
 
   var numQueued = 0
   var batchSize = 3
+  var numProcessed = 0
   var log = new Log(nextName(), {
     db: leveldown,
     valueEncoding: 'json'
@@ -33,15 +34,21 @@ test('add while reading', function (t) {
     db: ldb,
     log: log,
     process: function (entry, cb) {
-      if (numQueued < numEntries) {
-        numQueued += 3
-        addEntries(log, batchSize)
-      }
-
       setTimeout(function () {
-        cb()
+        numProcessed++
         t.pass()
+        cb()
       }, 200)
+    }
+  })
+
+  base.on('live', function () {
+    t.equal(numProcessed, numQueued)
+    if (numQueued < numEntries) {
+      numQueued += 3
+      addEntries(log, batchSize)
+    } else {
+      t.end()
     }
   })
 
@@ -143,7 +150,7 @@ test('timeout', function (t) {
   addEntries(log, 1)
 })
 
-test('basic', function (t) {
+test('restart while processing', function (t) {
   t.timeoutAfter(5000)
 
   var paths = {
