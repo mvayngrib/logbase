@@ -11,6 +11,46 @@ function nextName () {
   return (counter++) + '.db'
 }
 
+test('add while reading', function (t) {
+  var numEntries = 15
+  t.plan(15)
+
+  var numQueued = 0
+  var batchSize = 3
+  var log = new Log(nextName(), {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  log.setMaxListeners(0)
+  var ldb = levelup(nextName(), {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  var base = SimpleBase({
+    timeout: false,
+    db: ldb,
+    log: log,
+    process: function (entry, cb) {
+      if (numQueued < numEntries) {
+        numQueued += 3
+        addEntries(log, batchSize)
+      }
+
+      setTimeout(function () {
+        cb()
+        t.pass()
+      }, 200)
+    }
+  })
+
+  base.on('error', t.error)
+
+  numQueued += 3
+  addEntries(log, batchSize)
+})
+
 test('start/stop', function (t) {
   t.plan(1)
   t.timeoutAfter(1000)
