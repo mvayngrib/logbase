@@ -124,7 +124,7 @@ module.exports = function augment (opts) {
       live = false
     })
 
-    doRead()
+    checkLive(doRead)
   }
 
   function checkLive (cb) {
@@ -132,8 +132,10 @@ module.exports = function augment (opts) {
 
     var tmpLive = true
     log.on('appending', notLive)
+    log.on('appended', notLive)
     log.last(function (err, logPos) {
       log.removeListener('appending', notLive)
+      log.removeListener('appended', notLive)
 
       if (err) {
         sub.emit('error', err)
