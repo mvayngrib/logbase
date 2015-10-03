@@ -9,7 +9,6 @@ var sublevel = require('level-sublevel')
 var LAST_CHANGE_KEY = 'count'
 var COUNTER_SUBLEVEL = '~counter'
 var DEFAULT_TIMEOUT = 2000
-var noop = function () {}
 
 /**
  * augment a levelup to be a log consumer db
@@ -30,16 +29,16 @@ module.exports = function augment (opts) {
   var autostart = opts.autostart !== false
   var db = opts.db
   var log = opts.log
-  var processing
   var processEntry = opts.process
   var entryTimeout = opts.timeout === false ? false : opts.timeout || DEFAULT_TIMEOUT
-  var checkLiveTimeout
   var running
   var ready
   var live
   var closing
   var myPosition
+  var nextPosition
   var lastSaved
+  var logPos = 0
   var lock = mutexify()
 
   var sub = sublevel(db)
@@ -103,16 +102,16 @@ module.exports = function augment (opts) {
       throw new Error(LAST_CHANGE_KEY + ' is a reserved key')
     }
 
-    if (myPosition === lastSaved || batch[batch.length - 1] !== change) {
+    if (nextPosition === lastSaved || batch[batch.length - 1] !== change) {
       return
     }
 
-    lastSaved = myPosition
+    lastSaved = nextPosition
 
     add({
       type: 'put',
       key: LAST_CHANGE_KEY,
-      value: myPosition,
+      value: nextPosition,
       prefix: counter
     })
   }
@@ -120,52 +119,38 @@ module.exports = function augment (opts) {
   function read () {
     // console.log('started!', db.db.location)
     running = true
+    var appending = 0
+    var appended = 0
     log.on('appending', function () {
+      appending++
       live = false
+      logPos++
     })
 
-    checkLive(doRead)
-  }
-
-  function checkLive (cb) {
-    cb = cb || noop
-
-    var tmpLive = true
-    log.on('appending', notLive)
-    log.on('appended', notLive)
-    log.last(function (err, logPos) {
-      log.removeListener('appending', notLive)
-      log.removeListener('appended', notLive)
-
-      if (err) {
-        sub.emit('error', err)
-        cb(err)
-      }
-
-      var cursorPos = processing ? myPosition - 1 : myPosition
-      tmpLive = tmpLive && logPos === cursorPos
-
-      if (!tmpLive) {
+    log.on('appended', function () {
+      appended++
+      if (appended !== appending) {
         live = false
-        // do nothing
-      } else {
-        if (!live) {
-          live = true
-          sub.emit('live')
-        }
+        logPos += (appended - appending)
+        appending = appended
       }
-
-      cb(null, live)
     })
 
-    function notLive () {
-      tmpLive = false
-    }
+    log.last(function (err, _logPos) {
+      if (err) return sub.emit('error', err)
+
+      logPos += _logPos
+      checkLive()
+      doRead()
+    })
   }
 
-  function postProcess () {
-    clearTimeout(checkLiveTimeout)
-    checkLiveTimeout = setTimeout(checkLive, 200)
+  function checkLive () {
+    // may happen more than once
+    if (myPosition === logPos) {
+      live = true
+      sub.emit('live')
+    }
   }
 
   function doRead () {
@@ -176,6 +161,9 @@ module.exports = function augment (opts) {
         since: myPosition
       }),
       pull.asyncMap(function (entry, cb) {
+        // if (closing) return cb()
+
+        nextPosition = myPosition + 1
         lock(processorFor(entry, cb))
       }),
       pull.drain()
@@ -186,23 +174,19 @@ module.exports = function augment (opts) {
     var timedOut
     var timeout
     return function (release) {
+      // if (closing) return release(cb)
       if (entryTimeout !== false) {
         timeout = setTimeout(onTimedOut, entryTimeout)
       }
 
-      processing = true
-      myPosition++
       processEntry(entry, function (err) {
-        processing = false
+        if (timedOut) debug('timed out but eventually finished: ' + stringify(entry))
         if (timeout) clearTimeout(timeout)
 
-        if (timedOut) {
-          debug('timed out but eventually finished: ' + stringify(entry))
-        } else {
-          release(cb, err, entry)
-        }
-
-        postProcess()
+        myPosition = nextPosition
+        checkLive()
+        // db.emit('tick')
+        if (!timedOut) release(cb, err, entry)
       })
 
       function onTimedOut () {
@@ -213,7 +197,7 @@ module.exports = function augment (opts) {
         var err = new Error(msg)
         debug(msg, db.db.location)
         sub.emit('error', err)
-        if (!closing) release(cb, err, entry)
+        release(cb, null, entry)
       }
     }
   }
