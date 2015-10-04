@@ -4,7 +4,7 @@ var memdown = require('memdown')
 var Log = require('../log')
 var Entry = require('../entry')
 
-test('basic', function (t) {
+test('log, basic', function (t) {
   t.plan(4)
 
   var log = new Log('log.db', {
