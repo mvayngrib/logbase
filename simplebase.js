@@ -95,7 +95,7 @@ module.exports = function augment (opts) {
     }
   }
 
-  return sub
+  return toReadOnly(sub)
 
   function prehook (change, add, batch) {
     if (change.key === LAST_CHANGE_KEY) {
@@ -179,7 +179,7 @@ module.exports = function augment (opts) {
         timeout = setTimeout(onTimedOut, entryTimeout)
       }
 
-      processEntry(entry, function (err) {
+      processEntry.call(sub, entry, function (err) {
         if (timedOut) debug('timed out but eventually finished: ' + stringify(entry))
         if (timeout) clearTimeout(timeout)
 
@@ -205,4 +205,27 @@ module.exports = function augment (opts) {
 
 function stringify (entry) {
   return JSON.stringify(entry.toJSON())
+}
+
+function toReadOnly (db) {
+  var readOnly = {}
+  for (var p in db) {
+    if (p === 'put' || p === 'batch') {
+      readOnly[p] = readOnlyErrThrower
+      continue
+    }
+
+    var val = db[p]
+    if (typeof val === 'function') {
+      readOnly[p] = val.bind(db)
+    } else {
+      readOnly[p] = val
+    }
+  }
+
+  return readOnly
+}
+
+function readOnlyErrThrower () {
+  throw new Error('this database is read-only')
 }
