@@ -95,16 +95,20 @@ module.exports = function augment (opts) {
     }
   }
 
-  return toReadOnly(sub)
+  return sub
 
   function prehook (change, add, batch) {
     if (change.key === LAST_CHANGE_KEY) {
       throw new Error(LAST_CHANGE_KEY + ' is a reserved key')
     }
 
-    if (nextPosition === lastSaved || batch[batch.length - 1] !== change) {
-      return
-    }
+    if (nextPosition === lastSaved) return
+
+    var alreadyAdded = batch.some(function (b) {
+      return b.prefix === counter
+    })
+
+    if (alreadyAdded) return
 
     lastSaved = nextPosition
 
@@ -207,25 +211,25 @@ function stringify (entry) {
   return JSON.stringify(entry.toJSON())
 }
 
-function toReadOnly (db) {
-  var readOnly = {}
-  for (var p in db) {
-    if (p === 'put' || p === 'batch') {
-      readOnly[p] = readOnlyErrThrower
-      continue
-    }
+// function toReadOnly (db) {
+//   var readOnly = {}
+//   for (var p in db) {
+//     if (p === 'put' || p === 'batch') {
+//       readOnly[p] = readOnlyErrThrower
+//       continue
+//     }
 
-    var val = db[p]
-    if (typeof val === 'function') {
-      readOnly[p] = val.bind(db)
-    } else {
-      readOnly[p] = val
-    }
-  }
+//     var val = db[p]
+//     if (typeof val === 'function') {
+//       readOnly[p] = val.bind(db)
+//     } else {
+//       readOnly[p] = val
+//     }
+//   }
 
-  return readOnly
-}
+//   return readOnly
+// }
 
-function readOnlyErrThrower () {
-  throw new Error('this database is read-only')
-}
+// function readOnlyErrThrower () {
+//   throw new Error('this database is read-only')
+// }

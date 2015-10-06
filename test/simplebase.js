@@ -11,37 +11,37 @@ function nextName () {
   return (counter++) + '.db'
 }
 
-test('logbase is read-only', function (t) {
-  var log = new Log(nextName(), {
-    db: leveldown,
-    valueEncoding: 'json'
-  })
+// test('logbase is read-only', function (t) {
+//   var log = new Log(nextName(), {
+//     db: leveldown,
+//     valueEncoding: 'json'
+//   })
 
-  log.setMaxListeners(0)
-  var ldb = levelup(nextName(), {
-    db: leveldown,
-    valueEncoding: 'json'
-  })
+//   log.setMaxListeners(0)
+//   var ldb = levelup(nextName(), {
+//     db: leveldown,
+//     valueEncoding: 'json'
+//   })
 
-  var base = SimpleBase({
-    timeout: false,
-    db: ldb,
-    log: log,
-    process: function (entry, cb) {
-      cb()
-    }
-  })
+//   var base = SimpleBase({
+//     timeout: false,
+//     db: ldb,
+//     log: log,
+//     process: function (entry, cb) {
+//       cb()
+//     }
+//   })
 
-  t.throws(function () {
-    base.put('hey', { ho: 1 })
-  }, /read\-only/)
+//   t.throws(function () {
+//     base.put('hey', { ho: 1 })
+//   }, /read\-only/)
 
-  t.throws(function () {
-    base.batch([{ type: 'del', key: 'hey' }])
-  }, /read\-only/)
+//   t.throws(function () {
+//     base.batch([{ type: 'del', key: 'hey' }])
+//   }, /read\-only/)
 
-  t.end()
-})
+//   t.end()
+// })
 
 test('add while reading', function (t) {
   var numEntries = 15
@@ -277,7 +277,10 @@ test('restart while processing', function (t) {
       }
 
       ids.push(entry.id())
-      self.batch([{ type: 'put', key: 'ids', value: ids }], cb)
+      self.batch([
+        { type: 'put', key: 'ids', value: ids },
+        { type: 'put', key: 'blah', value: ids }
+      ], cb)
     })
   }
 
