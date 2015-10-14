@@ -40,8 +40,17 @@ module.exports = function augment (opts) {
   var lastSaved
   var logPos = 0
   var lock = mutexify()
+  var sub
+  if (db.sublevel) {
+    if (db.sublevels.logbase) {
+      throw new Error('this db already has a logbase')
+    }
 
-  var sub = sublevel(db)
+    sub = db.sublevel('logbase')
+  } else {
+    sub = sublevel(db)
+  }
+
   sub.setMaxListeners(0)
   var counter = sub.sublevel(COUNTER_SUBLEVEL)
 
