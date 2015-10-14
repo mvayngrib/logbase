@@ -91,6 +91,15 @@ module.exports = function augment (opts) {
     else sub.once('live', cb)
   }
 
+  sub.liveOnly = function (fn, ctx) {
+    return function () {
+      var args = arguments
+      sub.onLive(function () {
+        return fn.apply(ctx || this, args)
+      })
+    }
+  }
+
   db.once('closing', function () {
     closing = true
   })
