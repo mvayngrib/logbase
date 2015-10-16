@@ -262,7 +262,6 @@ test('restart while processing', function (t) {
   var live
 
   function processEntry (entry, cb) {
-    var self = this
     live = processedId > numDead
     if (!live && passed++ === 3) {
       // die a few times
@@ -270,17 +269,17 @@ test('restart while processing', function (t) {
       return restart()
     }
 
-    self.get('ids', function (err, ids) {
+    base.get('ids', function (err, ids) {
       if (err) {
         if (err.notFound) ids = []
         else throw err
       }
 
       ids.push(entry.id())
-      self.batch([
+      cb([
         { type: 'put', key: 'ids', value: ids },
         { type: 'put', key: 'blah', value: ids }
-      ], cb)
+      ])
     })
   }
 

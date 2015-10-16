@@ -1,13 +1,10 @@
 
-// var Hooks = require('level-hooks')
 var debug = require('debug')('logbase')
 var typeforce = require('typeforce')
 var pl = require('pull-level')
 var pull = require('pull-stream')
 var mutexify = require('mutexify')
-var sublevel = require('level-sublevel')
-var LAST_CHANGE_KEY = 'count'
-var COUNTER_SUBLEVEL = '~counter'
+var DEFAULT_COUNTER_KEY = 'count'
 var DEFAULT_TIMEOUT = 2000
 
 /**
@@ -17,15 +14,18 @@ var DEFAULT_TIMEOUT = 2000
  * @param  {Log} opts.log
  * @param  {Function} opts.process entry processor function
  * @param  {Boolean} opts.autostart (optional, default: true) start when ready
- * @return {sublevel}
+ * @return {LevelUp} same instance
  */
 module.exports = function augment (opts) {
   typeforce({
     db: 'Object',
     log: 'Log',
-    process: 'Function'
+    process: 'Function',
+    counterKey: '?String',
+    timeout: typeforce.oneOf('Boolean', 'Number', 'Null')
   }, opts)
 
+  var counterKey = opts.counterKey || DEFAULT_COUNTER_KEY
   var autostart = opts.autostart !== false
   var db = opts.db
   var log = opts.log
@@ -36,76 +36,49 @@ module.exports = function augment (opts) {
   var live
   var closing
   var myPosition
-  var nextPosition
-  var lastSaved
+  // var nextPosition
   var logPos = 0
   var lock = mutexify()
-  var sub
-  if (db.sublevel) {
-    if (db.sublevels.logbase) {
-      throw new Error('this db already has a logbase')
-    }
 
-    sub = db.sublevel('logbase')
-  } else {
-    sub = sublevel(db)
-  }
-
-  sub.setMaxListeners(0)
-  var counter = sub.sublevel(COUNTER_SUBLEVEL)
-
-  sub.pre(prehook)
-
-  var nextSub = sub.sublevel
-  sub.sublevel = function () {
-    var sublev = nextSub.apply(this, arguments)
-    sublev.pre(prehook)
-    return sublev
-  }
-
-  counter.post(function (change) {
-    sub.emit('change', change.value)
-  })
-
-  counter.get(LAST_CHANGE_KEY, function (err, id) {
+  db.setMaxListeners(0)
+  db.get(counterKey, function (err, id) {
     if (err) {
       if (!err.notFound) throw err
     }
 
-    lastSaved = myPosition = id || 0
+    myPosition = id || 0
     ready = true
-    sub.emit('ready')
-    if (autostart) sub.start()
+    db.emit('ready')
+    if (autostart) db.start()
   })
-
-  sub.isLive = function () {
-    return live
-  }
-
-  sub.isReady = function () {
-    return ready
-  }
-
-  sub.onLive = function (cb) {
-    if (sub.isLive()) return cb()
-    else sub.once('live', cb)
-  }
-
-  sub.liveOnly = function (fn, ctx) {
-    return function () {
-      var args = arguments
-      sub.onLive(function () {
-        return fn.apply(ctx || this, args)
-      })
-    }
-  }
 
   db.once('closing', function () {
     closing = true
   })
 
-  sub.close = db.close.bind(db)
-  sub.start = function () {
+  db.isLive = function () {
+    return live
+  }
+
+  db.isReady = function () {
+    return ready
+  }
+
+  db.onLive = function (cb) {
+    if (db.isLive()) return cb()
+    else db.once('live', cb)
+  }
+
+  db.liveOnly = function (fn, ctx) {
+    return function () {
+      var args = arguments
+      db.onLive(function () {
+        return fn.apply(ctx || this, args)
+      })
+    }
+  }
+
+  db.start = function () {
     if (ready) {
       if (!running) read()
     } else {
@@ -113,30 +86,7 @@ module.exports = function augment (opts) {
     }
   }
 
-  return sub
-
-  function prehook (change, add, batch) {
-    if (change.key === LAST_CHANGE_KEY) {
-      throw new Error(LAST_CHANGE_KEY + ' is a reserved key')
-    }
-
-    if (nextPosition === lastSaved) return
-
-    var alreadyAdded = batch.some(function (b) {
-      return b.prefix === counter
-    })
-
-    if (alreadyAdded) return
-
-    lastSaved = nextPosition
-
-    add({
-      type: 'put',
-      key: LAST_CHANGE_KEY,
-      value: nextPosition,
-      prefix: counter
-    })
-  }
+  return db
 
   function read () {
     // console.log('started!', db.db.location)
@@ -159,7 +109,7 @@ module.exports = function augment (opts) {
     })
 
     log.last(function (err, _logPos) {
-      if (err) return sub.emit('error', err)
+      if (err) return db.emit('error', err)
 
       logPos += _logPos
       checkLive()
@@ -171,7 +121,7 @@ module.exports = function augment (opts) {
     // may happen more than once
     if (myPosition === logPos) {
       live = true
-      sub.emit('live')
+      db.emit('live')
     }
   }
 
@@ -185,7 +135,7 @@ module.exports = function augment (opts) {
       pull.asyncMap(function (entry, cb) {
         // if (closing) return cb()
 
-        nextPosition = myPosition + 1
+        // nextPosition = entry.id
         lock(processorFor(entry, cb))
       }),
       pull.drain()
@@ -201,15 +151,38 @@ module.exports = function augment (opts) {
         timeout = setTimeout(onTimedOut, entryTimeout)
       }
 
-      processEntry.call(sub, entry, function (err) {
+      var nextPosition = entry.id()
+      var upCounter = {
+        type: 'put',
+        key: counterKey,
+        value: nextPosition
+      }
+
+      processEntry(entry, function (batch) {
         if (timedOut) debug('timed out but eventually finished: ' + stringify(entry))
         if (timeout) clearTimeout(timeout)
 
+        batch = batch || []
+        var valid = batch.every(function (item) {
+          return item.key !== counterKey
+        })
+
+        if (!valid) throw new Error(counterKey + ' is a reserved key')
+
+        batch.push(upCounter)
+        db.batch(batch, postProcess)
+      })
+
+      function postProcess (err) {
+        if (closing) return
+        if (err) db.emit('error')
+        // continue even if error?
+
         myPosition = nextPosition
         checkLive()
-        // db.emit('tick')
+        db.emit('change', nextPosition)
         if (!timedOut) release(cb, err, entry)
-      })
+      }
 
       function onTimedOut () {
         if (closing) return
@@ -218,7 +191,7 @@ module.exports = function augment (opts) {
         var msg = 'timed out processing:' + stringify(entry)
         var err = new Error(msg)
         debug(msg, db.db.location)
-        sub.emit('error', err)
+        db.emit('error', err)
         release(cb, null, entry)
       }
     }
