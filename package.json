@@ -23,6 +23,7 @@
     "memdown": "^1.0.0",
     "pre-commit": "latest",
     "standard": "latest",
+    "stream-collector": "^1.0.1",
     "tape": "latest"
   },
   "homepage": "https://github.com/mvayngrib/logbase",

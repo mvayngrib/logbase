@@ -2,6 +2,8 @@
 var test = require('tape')
 var levelup = require('levelup')
 var leveldown = require('memdown')
+var collect = require('stream-collector')
+var extend = require('xtend')
 var SimpleBase = require('../simplebase')
 var Log = require('../log')
 var LogEntry = require('../entry')
@@ -177,6 +179,56 @@ test('timeout', function (t) {
   base.on('error', function (err) {
     t.ok(/timed out/.test(err.message))
     base.close(t.end)
+  })
+
+  addEntries(log, 1)
+})
+
+test.only('stream doesn\'t contain counter', function (t) {
+  t.plan(3)
+
+  var log = new Log(nextName(), {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  log.setMaxListeners(0)
+  var ldb = levelup(nextName(), {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  var keyVal = { key: 'hey', value: 'ho' }
+  var dbEntries = [
+    extend(keyVal, { type: 'put' })
+  ]
+
+  var base = SimpleBase({
+    db: ldb,
+    log: log,
+    process: function (entry, cb) {
+      cb(dbEntries)
+    }
+  })
+
+  base.on('live', function () {
+    collect(base.createReadStream(), function (err, entries) {
+      if (err) throw err
+
+      t.deepEqual(entries, [keyVal])
+    })
+
+    collect(base.createKeyStream(), function (err, keys) {
+      if (err) throw err
+
+      t.deepEqual(keys, [keyVal.key])
+    })
+
+    collect(base.createValueStream(), function (err, values) {
+      if (err) throw err
+
+      t.deepEqual(values, [keyVal.value])
+    })
   })
 
   addEntries(log, 1)

@@ -93,7 +93,7 @@ module.exports = function augment (opts) {
     }
 
     opts.start = '\x00\xff' // skip counter
-    return readStream.apply(this, arguments)
+    return readStream.call(this, opts)
   }
 
   return db
