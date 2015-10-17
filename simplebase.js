@@ -92,7 +92,7 @@ module.exports = function augment (opts) {
       throw new Error('invalid range')
     }
 
-    opts.start = '\x00\xff' // skip counter
+    opts.start = '\x00\x00' // skip counter
     return readStream.call(this, opts)
   }
 

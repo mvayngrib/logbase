@@ -184,7 +184,7 @@ test('timeout', function (t) {
   addEntries(log, 1)
 })
 
-test.only('stream doesn\'t contain counter', function (t) {
+test('stream doesn\'t contain counter', function (t) {
   t.plan(3)
 
   var log = new Log(nextName(), {
