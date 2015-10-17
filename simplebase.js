@@ -4,7 +4,8 @@ var typeforce = require('typeforce')
 var pl = require('pull-level')
 var pull = require('pull-stream')
 var mutexify = require('mutexify')
-var DEFAULT_COUNTER_KEY = 'count'
+var NULL_CHAR = '\x00'
+var COUNTER_KEY = NULL_CHAR
 var DEFAULT_TIMEOUT = 2000
 
 /**
@@ -21,11 +22,9 @@ module.exports = function augment (opts) {
     db: 'Object',
     log: 'Log',
     process: 'Function',
-    counterKey: '?String',
     timeout: typeforce.oneOf('Boolean', 'Number', 'Null')
   }, opts)
 
-  var counterKey = opts.counterKey || DEFAULT_COUNTER_KEY
   var autostart = opts.autostart !== false
   var db = opts.db
   var log = opts.log
@@ -41,7 +40,7 @@ module.exports = function augment (opts) {
   var lock = mutexify()
 
   db.setMaxListeners(0)
-  db.get(counterKey, function (err, id) {
+  db.get(COUNTER_KEY, function (err, id) {
     if (err) {
       if (!err.notFound) throw err
     }
@@ -84,6 +83,17 @@ module.exports = function augment (opts) {
     } else {
       autostart = true
     }
+  }
+
+  var readStream = db.createReadStream
+  db.createReadStream = function (opts) {
+    opts = opts || {}
+    if (opts.start && opts.start <= NULL_CHAR) {
+      throw new Error('invalid range')
+    }
+
+    opts.start = '\x00\xff' // skip counter
+    return readStream.apply(this, arguments)
   }
 
   return db
@@ -154,7 +164,7 @@ module.exports = function augment (opts) {
       var nextPosition = entry.id()
       var upCounter = {
         type: 'put',
-        key: counterKey,
+        key: COUNTER_KEY,
         value: nextPosition
       }
 
@@ -164,10 +174,10 @@ module.exports = function augment (opts) {
 
         batch = batch || []
         var valid = batch.every(function (item) {
-          return item.key !== counterKey
+          return item.key.charAt(0) !== NULL_CHAR
         })
 
-        if (!valid) throw new Error(counterKey + ' is a reserved key')
+        if (!valid) throw new Error('no nulls allowed in keys')
 
         batch.push(upCounter)
         db.batch(batch, postProcess)
