@@ -88,11 +88,14 @@ module.exports = function augment (opts) {
   var readStream = db.createReadStream
   db.createReadStream = function (opts) {
     opts = opts || {}
-    if (opts.start && opts.start <= NULL_CHAR) {
-      throw new Error('invalid range')
+    if (opts.start) {
+      if (opts.start <= NULL_CHAR) {
+        throw new Error('invalid range')
+      }
+    } else {
+      opts.start = '\x00\x00' // skip counter
     }
 
-    opts.start = '\x00\x00' // skip counter
     return readStream.call(this, opts)
   }
 
@@ -132,6 +135,7 @@ module.exports = function augment (opts) {
     if (myPosition === logPos) {
       live = true
       db.emit('live')
+      debug('db is live')
     }
   }
 
