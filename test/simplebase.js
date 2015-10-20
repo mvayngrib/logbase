@@ -184,6 +184,48 @@ test('timeout', function (t) {
   addEntries(log, 1)
 })
 
+test('read stream returns live data', function (t) {
+  t.plan(1)
+
+  var log = new Log(nextName(), {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  log.setMaxListeners(0)
+  var ldb = levelup(nextName(), {
+    db: leveldown,
+    valueEncoding: 'json'
+  })
+
+  var putOp = { key: 'count', value: 0, type: 'put' }
+  var dbEntries = [putOp]
+
+  var numEntries = 5
+  var base = SimpleBase({
+    db: ldb,
+    log: log,
+    process: function (entry, cb) {
+      if (putOp.value + 1 > numEntries) {
+        return cb()
+      } else {
+        putOp.value++
+        addEntries(log, 1) // add more
+        cb(dbEntries.slice())
+      }
+    }
+  })
+
+  collect(base.createReadStream(), function (err, entries) {
+    if (err) throw err
+
+    delete putOp.type
+    t.deepEqual(entries, dbEntries)
+  })
+
+  addEntries(log, 1)
+})
+
 test('stream doesn\'t contain counter', function (t) {
   t.plan(3)
 

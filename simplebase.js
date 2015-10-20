@@ -4,6 +4,8 @@ var typeforce = require('typeforce')
 var pl = require('pull-level')
 var pull = require('pull-stream')
 var mutexify = require('mutexify')
+// var through = require('through')
+var PassThrough = require('readable-stream').PassThrough
 var NULL_CHAR = '\x00'
 var COUNTER_KEY = NULL_CHAR
 var DEFAULT_TIMEOUT = 2000
@@ -96,7 +98,18 @@ module.exports = function augment (opts) {
       opts.start = '\x00\x00' // skip counter
     }
 
-    return readStream.call(this, opts)
+    var paused = new PassThrough({ objectMode: true })
+    paused.destroy = function () {
+      this.end()
+    }
+
+    paused.pause()
+    db.onLive(function () {
+      readStream.call(db, opts).pipe(paused)
+      paused.resume()
+    })
+
+    return paused
   }
 
   return db
