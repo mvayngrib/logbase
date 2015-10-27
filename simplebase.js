@@ -9,6 +9,7 @@ var PassThrough = require('readable-stream').PassThrough
 var NULL_CHAR = '\x00'
 var COUNTER_KEY = NULL_CHAR
 var DEFAULT_TIMEOUT = 2000
+var LONG_TIMEOUT = 20000
 
 /**
  * augment a levelup to be a log consumer db
@@ -27,6 +28,7 @@ module.exports = function augment (opts) {
     timeout: typeforce.oneOf('Boolean', 'Number', 'Null')
   }, opts)
 
+  var longTimeout
   var autostart = opts.autostart !== false
   var db = opts.db
   var log = opts.log
@@ -55,6 +57,7 @@ module.exports = function augment (opts) {
 
   db.once('closing', function () {
     closing = true
+    clearInterval(longTimeout)
   })
 
   db.isLive = function () {
@@ -185,7 +188,14 @@ module.exports = function augment (opts) {
         value: nextPosition
       }
 
+      var startTime = Date.now()
+      longTimeout = setInterval(function () {
+        var time = Date.now() - startTime
+        debug('still processing (' + time + 'ms): ' + stringify(entry))
+      }, LONG_TIMEOUT)
+
       processEntry(entry, function (batch) {
+        clearInterval(longTimeout)
         if (timedOut) debug('timed out but eventually finished: ' + stringify(entry))
         if (timeout) clearTimeout(timeout)
 
