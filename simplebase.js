@@ -1,5 +1,6 @@
 
 var debug = require('debug')('logbase')
+var pump = require('pump')
 var typeforce = require('typeforce')
 var pl = require('pull-level')
 var pull = require('pull-stream')
@@ -102,13 +103,20 @@ module.exports = function augment (opts) {
     }
 
     var paused = new PassThrough({ objectMode: true })
+    var rs
     paused.destroy = function () {
-      this.end()
+      if (rs) rs.destroy()
+      else this.end()
     }
 
     paused.pause()
     db.onLive(function () {
-      readStream.call(db, opts).pipe(paused)
+      rs = readStream.call(db, opts)
+      pump(
+        rs,
+        paused
+      )
+
       paused.resume()
     })
 
