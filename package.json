@@ -38,7 +38,6 @@
   "main": "index.js",
   "name": "logbase",
   "pre-commit": [
-    "style",
     "test"
   ],
   "repository": {
@@ -49,5 +48,5 @@
     "style": "standard",
     "test": "node test"
   },
-  "version": "3.2.1"
+  "version": "3.2.2"
 }
