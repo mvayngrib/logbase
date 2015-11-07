@@ -1,5 +1,6 @@
 
 var extend = require('xtend/mutable')
+var timestamp = require('monotonic-timestamp')
 // var RESERVED_PROPS = [
 //   'type',
 //   'id',
@@ -13,7 +14,7 @@ function Entry (props) {
   if (!(this instanceof Entry)) return new Entry(props)
 
   this._props = extend({
-    timestamp: Date.now(),
+    timestamp: timestamp(),
     prev: []
   }, props)
 }
