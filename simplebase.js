@@ -2,8 +2,8 @@
 var debug = require('debug')('logbase')
 var pump = require('pump')
 var typeforce = require('typeforce')
-var pl = require('pull-level')
-var pull = require('pull-stream')
+// var pl = require('pull-level')
+// var pull = require('pull-stream')
 var mutexify = require('mutexify')
 // var through = require('through')
 var PassThrough = require('readable-stream').PassThrough
@@ -164,20 +164,18 @@ module.exports = function augment (opts) {
   }
 
   function doRead () {
-    pull(
-      pl.read(log, {
-        tail: true,
-        live: true,
-        since: myPosition
-      }),
-      pull.asyncMap(function (entry, cb) {
-        // if (closing) return cb()
+    var stream = log.createReadStream({
+      live: true,
+      since: myPosition
+    })
 
-        // nextPosition = entry.id
-        lock(processorFor(entry, cb))
-      }),
-      pull.drain()
-    )
+    var resume = stream.resume.bind(stream)
+    stream.on('data', function (entry) {
+      // if (stream.isPaused()) throw new Error('oops')
+
+      stream.pause()
+      lock(processorFor(entry, resume))
+    })
   }
 
   function processorFor (entry, cb) {
