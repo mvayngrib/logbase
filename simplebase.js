@@ -29,6 +29,7 @@ module.exports = function augment (opts) {
     timeout: typeforce.oneOf('Boolean', 'Number', 'Null')
   }, opts)
 
+  var processing
   var longTimeout
   var autostart = opts.autostart !== false
   var db = opts.db
@@ -70,6 +71,10 @@ module.exports = function augment (opts) {
   }
 
   db.onLive = function (cb) {
+    if (processing) {
+      throw new Error('using onLive while processing an entry causes deadlock')
+    }
+
     if (db.isLive()) return cb()
     else db.once('live', cb)
   }
@@ -200,7 +205,9 @@ module.exports = function augment (opts) {
         debug('still processing (' + time + 'ms): ' + stringify(entry))
       }, LONG_TIMEOUT)
 
+      processing = true
       processEntry(entry, function (batch) {
+        processing = false
         clearInterval(longTimeout)
         if (timedOut) debug('timed out but eventually finished: ' + stringify(entry))
         if (timeout) clearTimeout(timeout)
