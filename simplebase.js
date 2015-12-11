@@ -96,7 +96,7 @@ module.exports = function augment (opts) {
     }
   }
 
-  var readStream = db.createReadStream
+  db.rawReadStream = db.createReadStream
   db.createReadStream = function (opts) {
     opts = opts || {}
     if (opts.start) {
@@ -116,7 +116,7 @@ module.exports = function augment (opts) {
 
     paused.pause()
     db.onLive(function () {
-      rs = readStream.call(db, opts)
+      rs = db.rawReadStream.call(db, opts)
       pump(
         rs,
         paused
