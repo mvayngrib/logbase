@@ -26,9 +26,11 @@ module.exports = function augment (opts) {
     db: 'Object',
     log: 'Log',
     process: 'Function',
-    timeout: typeforce.oneOf('Boolean', 'Number', 'Null')
+    timeout: typeforce.oneOf('Boolean', 'Number', 'Null'),
+    topics: '?Array'
   }, opts)
 
+  var topics = opts.topics
   var longTimeout
   var autostart = opts.autostart !== false
   var db = opts.db
@@ -123,23 +125,53 @@ module.exports = function augment (opts) {
     return paused
   }
 
+  // var timer = TimeMethod.timerFor(db)
+  // timer.time('onLive')
+  // var interval = setInterval(function () {
+  //   var stats = timer.getStats()
+  //     // .filter(function (s) {
+  //     //   return s.timePerInvocation > 20000000 // 20 ms
+  //     // })
+
+  //   stats.forEach(function (s) {
+  //     s.time /= 1e6
+  //     s.timePerInvocation /= 1e6
+  //   })
+
+  //   console.log(db.location, stats)
+  //   timer.reset()
+  //   clearInterval(interval)
+  // }, 5000)
+
   return db
+
+  function willProcess (entry) {
+    if (!topics) return true
+
+    return topics.indexOf(entry.get('type')) !== -1
+  }
 
   function read () {
     // console.log('started!', db.db.location)
     running = true
     var appending = 0
     var appended = 0
-    log.on('appending', function () {
+    log.on('appending', function (entry) {
       appending++
-      live = false
+      if (willProcess(entry)) {
+        live = false
+      }
+
       logPos++
     })
 
-    log.on('appended', function () {
+    log.on('appended', function (entry) {
       appended++
       if (appended !== appending) {
-        live = false
+        if (willProcess(entry)) {
+          live = false
+        }
+
         logPos += (appended - appending)
         appending = appended
       }
@@ -172,6 +204,11 @@ module.exports = function augment (opts) {
     var resume = stream.resume.bind(stream)
     stream.on('data', function (entry) {
       // if (stream.isPaused()) throw new Error('oops')
+      if (!willProcess(entry)) {
+        myPosition++
+        checkLive()
+        return
+      }
 
       stream.pause()
       lock(processorFor(entry, resume))
