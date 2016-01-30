@@ -1,7 +1,7 @@
 
 var util = require('util')
 var extend = require('xtend')
-var combine = require('stream-combiner2')
+var pump = require('pump')
 var Writable = require('readable-stream').Writable
 var levelup = require('levelup')
 var changesFeed = require('changes-feed')
@@ -50,7 +50,7 @@ Log.prototype.readStream =
 Log.prototype.createReadStream = function (options) {
   if (options.keys === false) throw new Error('"keys" are required')
 
-  var pipeline = [
+  return pump(
     this._log.createReadStream(options),
     map(function (data, cb) {
       var hasValues = !options || options.values !== false
@@ -60,9 +60,7 @@ Log.prototype.createReadStream = function (options) {
         cb(null, data)
       }
     })
-  ]
-
-  return combine.obj.apply(combine, pipeline)
+  )
 }
 
 Log.prototype.get = function (id, opts, cb) {
