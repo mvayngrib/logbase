@@ -146,9 +146,7 @@ module.exports = function augment (opts) {
   return db
 
   function willProcess (entry) {
-    if (!topics) return true
-
-    return topics.indexOf(entry.get('type')) !== -1
+    return !topics || topics.indexOf(entry.get('type')) !== -1
   }
 
   function read () {
@@ -168,7 +166,7 @@ module.exports = function augment (opts) {
     log.on('appended', function (entry) {
       appended++
       if (appended !== appending) {
-        if (willProcess(entry)) {
+        if (live && willProcess(entry)) {
           live = false
         }
 
@@ -258,9 +256,9 @@ module.exports = function augment (opts) {
         if (err) db.emit('error')
         // continue even if error?
 
-        myPosition = nextPosition
+        myPosition++
         checkLive()
-        db.emit('change', nextPosition)
+        db.emit('change', myPosition)
         if (!timedOut) release(cb, err, entry)
       }
 
