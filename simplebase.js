@@ -156,22 +156,16 @@ module.exports = function augment (opts) {
     var appended = 0
     log.on('appending', function (entry) {
       appending++
-      if (willProcess(entry)) {
-        live = false
-      }
-
       logPos++
+      checkLive()
     })
 
     log.on('appended', function (entry) {
       appended++
       if (appended !== appending) {
-        if (live && willProcess(entry)) {
-          live = false
-        }
-
         logPos += (appended - appending)
         appending = appended
+        checkLive()
       }
     })
 
@@ -190,6 +184,8 @@ module.exports = function augment (opts) {
       live = true
       db.emit('live')
       debug('db is live')
+    } else {
+      live = false
     }
   }
 
