@@ -180,12 +180,12 @@ module.exports = function augment (opts) {
 
   function checkLive () {
     // may happen more than once
-    if (myPosition === logPos) {
+    if (myPosition < logPos) {
+      live = false
+    } else {
       live = true
       db.emit('live')
       debug('db is live')
-    } else {
-      live = false
     }
   }
 
