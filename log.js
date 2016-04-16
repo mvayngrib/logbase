@@ -1,6 +1,7 @@
 
 var util = require('util')
 var extend = require('xtend')
+var thunky = require('thunky')
 var pump = require('pump')
 var Writable = require('readable-stream').Writable
 var levelup = require('levelup')
@@ -26,6 +27,7 @@ var entryEncoding = {
 }
 
 function Log (path, options) {
+  var self = this
   if (!(this instanceof Log)) return new Log(path, options)
 
   Writable.call(this, { objectMode: true })
@@ -35,6 +37,29 @@ function Log (path, options) {
 
   this._db = levelup(path, options)
   this._log = changesFeed(this._db)
+
+  this._length = undefined
+  this._init = thunky(function (cb) {
+    self.last(function (err, last) {
+      if (err) throw err
+
+      self._initialized = true
+      self._length = last
+      self.emit('ready')
+      if (cb) cb()
+    })
+  })
+
+  this._init()
+}
+
+Log.prototype.length = function () {
+  return this._length
+}
+
+Log.prototype.onready = function (cb) {
+  if (this._initialized) process.nextTick(cb)
+  else this.once('ready', cb)
 }
 
 Log.prototype._write = function (chunk, enc, next) {
@@ -80,11 +105,22 @@ Log.prototype.get = function (id, opts, cb) {
 Log.prototype.append = function (entry, cb) {
   var self = this
   typeforce('Entry', entry)
-  this.emit('appending', entry)
-  return this._log.append(entry, function () {
-    self.emit('appended', entry)
-    if (cb) cb()
+
+  this._init(function () {
+    self._setLength(self._length + 1)
+    return self._log.append(entry, function (err) {
+      if (err) self._setLength(self._length - 1)
+
+      if (cb) cb(err)
+    })
   })
+}
+
+Log.prototype._setLength = function (length) {
+  if (this._length !== length) {
+    this._length = length
+    this.emit('length', length)
+  }
 }
 
 Log.prototype.last = function (cb) {

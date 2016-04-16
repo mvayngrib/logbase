@@ -15,6 +15,7 @@
     "pump": "^1.0.1",
     "readable-stream": "1.0.33-1",
     "safecb": "0.0.1",
+    "thunky": "^0.1.0",
     "typeforce": "^1.1.2",
     "xtend": "^4.0.0"
   },

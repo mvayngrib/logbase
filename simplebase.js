@@ -150,31 +150,16 @@ module.exports = function augment (opts) {
   }
 
   function read () {
-    // console.log('started!', db.db.location)
     running = true
-    var appending = 0
-    var appended = 0
-    log.on('appending', function (entry) {
-      appending++
-      logPos++
-      checkLive()
-    })
 
-    log.on('appended', function (entry) {
-      appended++
-      if (appended !== appending) {
-        logPos += (appended - appending)
-        appending = appended
-        checkLive()
-      }
-    })
-
-    log.last(function (err, _logPos) {
-      if (err) return db.emit('error', err)
-
-      logPos += _logPos
-      checkLive()
+    log.onready(function () {
+      logPos = log.length()
       doRead()
+    })
+
+    log.on('length', function (length) {
+      logPos = log.length()
+      checkLive()
     })
   }
 
@@ -249,7 +234,7 @@ module.exports = function augment (opts) {
 
       function postProcess (err) {
         if (closing) return
-        if (err) db.emit('error')
+        if (err) emitError(db, err)
         // continue even if error?
 
         myPosition++
@@ -265,7 +250,7 @@ module.exports = function augment (opts) {
         var msg = 'timed out processing:' + stringify(entry)
         var err = new Error(msg)
         debug(msg, db.db.location)
-        db.emit('error', err)
+        emitError(db, err)
         release(cb, null, entry)
       }
     }
@@ -274,6 +259,11 @@ module.exports = function augment (opts) {
 
 function stringify (entry) {
   return JSON.stringify(entry.toJSON())
+}
+
+function emitError (db, err) {
+  debug(db.location + ' experienced error', err.stack)
+  db.emit('error', err)
 }
 
 // function toReadOnly (db) {
