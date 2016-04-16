@@ -154,6 +154,7 @@ module.exports = function augment (opts) {
 
     log.onready(function () {
       logPos = log.length()
+      checkLive()
       doRead()
     })
 

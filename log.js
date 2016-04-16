@@ -58,8 +58,14 @@ Log.prototype.length = function () {
 }
 
 Log.prototype.onready = function (cb) {
-  if (this._initialized) process.nextTick(cb)
-  else this.once('ready', cb)
+  if (this._initialized) {
+    process.nextTick(cb)
+  } else {
+    // make sure it's on next tick
+    // as _append ops queued for after init need to
+    // be taked into account first
+    this.once('ready', this.onready.bind(this, cb))
+  }
 }
 
 Log.prototype._write = function (chunk, enc, next) {
