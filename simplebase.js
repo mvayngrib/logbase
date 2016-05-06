@@ -146,7 +146,7 @@ module.exports = function augment (opts) {
   return db
 
   function willProcess (entry) {
-    return !topics || topics.indexOf(entry.get('type')) !== -1
+    return !topics || topics.indexOf(entry.type) !== -1
   }
 
   function read () {
@@ -204,7 +204,7 @@ module.exports = function augment (opts) {
         timeout = setTimeout(onTimedOut, entryTimeout)
       }
 
-      var nextPosition = entry.id()
+      var nextPosition = entry.id
       var upCounter = {
         type: 'put',
         key: COUNTER_KEY,
@@ -259,7 +259,7 @@ module.exports = function augment (opts) {
 }
 
 function stringify (entry) {
-  return JSON.stringify(entry.toJSON())
+  return JSON.stringify(entry)
 }
 
 function emitError (db, err) {

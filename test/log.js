@@ -2,10 +2,10 @@
 var test = require('tape')
 var memdown = require('memdown')
 var Log = require('../log')
-var Entry = require('../entry')
+// var Entry = require('../entry')
 
 test('log, basic', function (t) {
-  t.plan(4)
+  t.plan(2)
 
   var log = new Log('log.db', {
     db: memdown
@@ -13,29 +13,27 @@ test('log, basic', function (t) {
 
   var liveStream = log.createReadStream({ live: true })
   liveStream.once('data', function (data) {
-    t.ok(data instanceof Entry)
-    entry.id(data.id()) // id should be the only thing missing
-    t.deepEqual(data.toJSON(), entry.toJSON())
+    delete data.id
+    t.deepEqual(data, entry)
   })
 
-  var entry = new Entry({
+  var entry = {
     hey: 'ho',
     blah: {
       blah: {
         blah: 1
       }
     }
-  })
+  }
 
-  t.throws(log.append.bind(log, entry.toJSON()), /Expected Entry/i)
   log.append(entry, function (err) {
     if (err) throw err
 
     log.get(1, function (err, stored) {
       if (err) throw err
 
-      entry.id(stored.id())
-      t.deepEqual(stored.toJSON(), entry.toJSON())
+      delete stored.id
+      t.deepEqual(stored, entry)
     })
   })
 })

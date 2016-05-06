@@ -6,7 +6,7 @@ var collect = require('stream-collector')
 var extend = require('xtend')
 var SimpleBase = require('../simplebase')
 var Log = require('../log')
-var LogEntry = require('../entry')
+// var LogEntry = require('../entry')
 var counter = 0
 
 function nextName () {
@@ -68,16 +68,16 @@ test('topics', function (t) {
     log: log,
     topics: allowedTopics,
     process: function (entry, cb) {
-      t.notEqual(allowedTopics.indexOf(entry.get('type')), -1)
+      t.notEqual(allowedTopics.indexOf(entry.type), -1)
       process.nextTick(cb)
     }
   })
 
   base.on('live', t.end)
   topics.forEach(function (topic) {
-    log.append(new LogEntry({
+    log.append({
       type: topic
-    }))
+    })
   })
 })
 
@@ -405,7 +405,7 @@ test('restart while processing', function (t) {
         else throw err
       }
 
-      ids.push(entry.id())
+      ids.push(entry.id)
       cb([
         { type: 'put', key: 'ids', value: ids },
         { type: 'put', key: 'blah', value: ids }
@@ -422,9 +422,8 @@ test('restart while processing', function (t) {
 function addEntries (log, num, offset) {
   offset = offset || 0
   for (var i = 1; i <= num; i++) {
-    var entry = new LogEntry()
-      .set('count', i + offset)
-
-    log.append(entry)
+    log.append({
+      count: i + offset
+    })
   }
 }

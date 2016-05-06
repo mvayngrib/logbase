@@ -10,17 +10,14 @@ var typeforce = require('typeforce')
 var map = require('map-stream')
 var safe = require('safecb')
 var rebuf = require('./rebuf')
-var Entry = require('./entry')
 
 module.exports = Log
 util.inherits(Log, Writable)
 
 var entryEncoding = {
-  encode: function (entry) {
-    return JSON.stringify(entry.toJSON())
-  },
-  decode: function (entry) {
-    return new Entry(rebuf(JSON.parse(entry)))
+  encode: JSON.stringify,
+  decode: function (val) {
+    return rebuf(JSON.parse(val))
   },
   buffer: false,
   type: 'logEntry'
@@ -86,7 +83,8 @@ Log.prototype.createReadStream = function (options) {
     map(function (data, cb) {
       var hasValues = !options || options.values !== false
       if (hasValues) {
-        cb(null, data.value.id(data.change))
+        data.value.id = data.change
+        cb(null, data.value)
       } else {
         cb(null, data)
       }
@@ -103,15 +101,15 @@ Log.prototype.get = function (id, opts, cb) {
   return this._log.get(id, opts, function (err, entry) {
     if (err) return cb(err)
 
-    entry.id(id)
+    entry.id = id
     cb(null, entry)
   })
 }
 
 Log.prototype.append = function (entry, cb) {
   var self = this
-  typeforce('Entry', entry)
 
+  // assert(entry.type, 'log entry must have "type"')
   this._init(function () {
     self._setLength(self._length + 1)
     return self._log.append(entry, function (err) {
@@ -134,9 +132,13 @@ Log.prototype.last = function (cb) {
   return this.read({ limit: 1, reverse: true })
     .once('error', cb)
     .once('data', function (entry) {
-      cb(null, entry.id())
+      cb(null, entry.id)
     })
     .once('end', function () {
       cb(null, 0)
     })
 }
+
+// function assert (statement, msg) {
+//   if (!statement) throw new Error(msg)
+// }
