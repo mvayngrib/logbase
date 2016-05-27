@@ -145,9 +145,9 @@ module.exports = function augment (opts) {
 
   return db
 
-  function willProcess (entry) {
-    return !topics || topics.indexOf(entry.get('type')) !== -1
-  }
+  // function willProcess (entry) {
+  //   return !topics || topics.indexOf(entry.get('type')) !== -1
+  // }
 
   function read () {
     running = true
@@ -184,11 +184,11 @@ module.exports = function augment (opts) {
     var resume = stream.resume.bind(stream)
     stream.on('data', function (entry) {
       // if (stream.isPaused()) throw new Error('oops')
-      if (!willProcess(entry)) {
-        myPosition++
-        checkLive()
-        return
-      }
+      // if (!willProcess(entry)) {
+      //   myPosition++
+      //   checkLive()
+      //   return
+      // }
 
       stream.pause()
       lock(processorFor(entry, resume))

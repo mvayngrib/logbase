@@ -45,41 +45,41 @@ function nextName () {
 //   t.end()
 // })
 
-test('topics', function (t) {
-  t.timeoutAfter(1000)
-  var topics = ['stuff', 'pain', 'food', 'poison', 'bears', 'excellent']
-  var allowedTopics = topics.filter(function (t, i) {
-    return i < 3
-  })
+// test('topics', function (t) {
+//   t.timeoutAfter(1000)
+//   var topics = ['stuff', 'pain', 'food', 'poison', 'bears', 'excellent']
+//   var allowedTopics = topics.filter(function (t, i) {
+//     return i < 3
+//   })
 
-  var log = new Log(nextName(), {
-    db: leveldown,
-    valueEncoding: 'json'
-  })
+//   var log = new Log(nextName(), {
+//     db: leveldown,
+//     valueEncoding: 'json'
+//   })
 
-  log.setMaxListeners(0)
-  var ldb = levelup(nextName(), {
-    db: leveldown,
-    valueEncoding: 'json'
-  })
+//   log.setMaxListeners(0)
+//   var ldb = levelup(nextName(), {
+//     db: leveldown,
+//     valueEncoding: 'json'
+//   })
 
-  var base = SimpleBase({
-    db: ldb,
-    log: log,
-    topics: allowedTopics,
-    process: function (entry, cb) {
-      t.notEqual(allowedTopics.indexOf(entry.get('type')), -1)
-      process.nextTick(cb)
-    }
-  })
+//   var base = SimpleBase({
+//     db: ldb,
+//     log: log,
+//     topics: allowedTopics,
+//     process: function (entry, cb) {
+//       t.notEqual(allowedTopics.indexOf(entry.get('type')), -1)
+//       process.nextTick(cb)
+//     }
+//   })
 
-  base.on('live', t.end)
-  topics.forEach(function (topic) {
-    log.append(new LogEntry({
-      type: topic
-    }))
-  })
-})
+//   base.on('live', t.end)
+//   topics.forEach(function (topic) {
+//     log.append(new LogEntry({
+//       type: topic
+//     }))
+//   })
+// })
 
 test('add while reading', function (t) {
   var numEntries = 15
